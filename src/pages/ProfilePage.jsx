@@ -13,24 +13,52 @@ export default function ProfilePage() {
     password: '',
     confirmPassword: '',
   })
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
 
   useEffect(() => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setUser(session?.user || null)
+        setIsPasswordRecovery(true)
+        setStatusMessage('A folytatáshoz adj meg egy új jelszót.')
+        setIsLoading(false)
+      }
+    })
+
     async function loadUser() {
       const { data } = await supabase.auth.getUser()
+      const isRecoveryUrl =
+        window.location.hash.includes('type=recovery') ||
+        window.location.search.includes('type=recovery')
 
       if (!data.user) {
+        if (isRecoveryUrl) {
+          setIsPasswordRecovery(true)
+          setStatusMessage('A folytatáshoz adj meg egy új jelszót.')
+          setIsLoading(false)
+          return
+        }
+
         navigate('/login')
         return
       }
 
       setUser(data.user)
+      setIsPasswordRecovery(isRecoveryUrl)
+      if (isRecoveryUrl) {
+        setStatusMessage('A folytatáshoz adj meg egy új jelszót.')
+      }
       setIsLoading(false)
     }
 
     loadUser()
+
+    return () => {
+      authListener.subscription.unsubscribe()
+    }
   }, [navigate])
 
   function handleChange(event) {
@@ -68,6 +96,7 @@ export default function ProfilePage() {
       password: '',
       confirmPassword: '',
     })
+    setIsPasswordRecovery(false)
     setStatusMessage('A jelszavad sikeresen módosítva.')
   }
 
@@ -86,10 +115,16 @@ export default function ProfilePage() {
     <main className="auth-page">
       <section className="auth-card">
         <p className="eyebrow">Profil</p>
-        <h1>Saját profil</h1>
-        <p className="auth-intro">
-          Bejelentkezve: <strong>{getUserName(user)}</strong>
-        </p>
+        <h1>{isPasswordRecovery ? 'Új jelszó megadása' : 'Saját profil'}</h1>
+        {isPasswordRecovery ? (
+          <p className="auth-intro">
+            A jelszó-visszaállítás befejezéséhez kötelező új jelszót megadnod.
+          </p>
+        ) : (
+          <p className="auth-intro">
+            Bejelentkezve: <strong>{getUserName(user)}</strong>
+          </p>
+        )}
 
         <form className="auth-form" onSubmit={handleSubmit}>
           <label htmlFor="profile-password">Új jelszó</label>
@@ -117,13 +152,17 @@ export default function ProfilePage() {
           />
 
           <button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Mentés...' : 'Jelszó módosítása'}
+            {isSubmitting
+              ? 'Mentés...'
+              : isPasswordRecovery
+                ? 'Új jelszó mentése'
+                : 'Jelszó módosítása'}
           </button>
         </form>
 
         {statusMessage && <p className="form-message">{statusMessage}</p>}
 
-        <Link className="text-link" to="/">Vissza a főoldalra</Link>
+        {!isPasswordRecovery && <Link className="text-link" to="/">Vissza a főoldalra</Link>}
       </section>
     </main>
   )

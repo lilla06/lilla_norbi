@@ -1,0 +1,12 @@
+---
+description: Read local project agent notes before editing this project
+alwaysApply: true
+---
+
+# Read Project Agent Notes
+
+Before editing this project, read `PROJECT_AGENT_NOTES.md` from the repository root.
+
+Use that file for project-specific git rules, deployment notes, admin UI conventions, seating layout constraints, and other local context.
+
+If the file is missing or cannot be read, mention that before making code changes.
