@@ -1076,6 +1076,16 @@ p {
   width: min(100%, 1180px);
 }
 
+.rooms-page.is-assigning {
+  place-items: start stretch;
+  padding-left: 344px;
+}
+
+.rooms-page.is-assigning .rooms-card {
+  width: 100%;
+  max-width: none;
+}
+
 .room-grid,
 .room-assignment-grid {
   display: grid;
@@ -1162,19 +1172,22 @@ p {
 }
 
 .room-assignment-editor {
-  display: grid;
-  grid-template-columns: 280px 1fr;
-  gap: 18px;
+  display: block;
   margin-top: 24px;
 }
 
+.room-assignment-editor .room-assignment-grid {
+  margin-left: 0;
+}
+
 .room-guest-palette {
-  position: sticky;
+  position: fixed;
   top: 112px;
-  left: auto;
-  z-index: 1;
-  width: auto;
-  max-height: calc(100vh - 220px);
+  bottom: 112px;
+  left: 24px;
+  z-index: 8;
+  width: 296px;
+  max-height: none;
   transform: none;
 }
 
@@ -1266,6 +1279,31 @@ p {
 
 .site-footer a {
   color: #fff8e7;
+}
+
+@media (max-width: 980px) {
+  .rooms-page.is-assigning {
+    place-items: start center;
+    padding-left: 24px;
+  }
+
+  .rooms-page.is-assigning .rooms-card {
+    width: min(100%, 1180px);
+    max-width: calc(100vw - 48px);
+  }
+
+  .room-assignment-editor .room-assignment-grid {
+    margin-left: 0;
+  }
+
+  .room-guest-palette {
+    position: sticky;
+    top: 96px;
+    bottom: auto;
+    left: auto;
+    width: 100%;
+    max-height: 320px;
+  }
 }
 
 @media (max-width: 680px) {

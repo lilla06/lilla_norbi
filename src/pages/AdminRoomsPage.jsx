@@ -418,7 +418,7 @@ export default function AdminRoomsPage() {
   }
 
   return (
-    <main className="auth-page rooms-page">
+    <main className={`auth-page rooms-page ${editMode === 'assignments' ? 'is-assigning' : ''}`}>
       <section className="auth-card admin-card rooms-card">
         <p className="eyebrow">Admin</p>
         <h1>Szobabeosztás</h1>
