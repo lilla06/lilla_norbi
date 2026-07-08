@@ -435,6 +435,25 @@ p {
   transform: none;
 }
 
+.password-reset-card {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(112, 84, 50, 0.16);
+}
+
+.password-reset-card h2 {
+  margin: 0;
+  color: #2d4726;
+  font-family: Arial, sans-serif;
+  font-size: 20px;
+}
+
+.password-reset-card p {
+  margin: 0 0 6px;
+  color: #4e3d2a;
+  font-family: Arial, sans-serif;
+}
+
 .form-message {
   padding: 12px 14px;
   color: #2d4726;
@@ -571,12 +590,14 @@ p {
   width: 100%;
   margin-top: 24px;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   border: 1px solid rgba(112, 84, 50, 0.18);
   border-radius: 20px;
 }
 
 .admin-table {
   width: 100%;
+  min-width: 720px;
   border-collapse: collapse;
   color: #24351f;
   font-family: Arial, sans-serif;
@@ -1074,6 +1095,27 @@ p {
 
   .auth-card h1 {
     font-size: clamp(28px, 8vw, 36px);
+    white-space: normal;
+  }
+
+  .auth-page {
+    place-items: start center;
+    padding: 112px 12px 104px;
+  }
+
+  .auth-card {
+    width: 100%;
+    padding: 24px 16px;
+    border-radius: 24px;
+  }
+
+  .auth-form input,
+  .auth-form select {
+    padding: 12px 14px;
+  }
+
+  .content-section {
+    padding: 72px 18px;
   }
 
   .hero {
@@ -1089,6 +1131,61 @@ p {
     grid-template-columns: 1fr;
   }
 
+  .admin-card {
+    width: 100%;
+  }
+
+  .admin-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-stats article {
+    padding: 12px;
+  }
+
+  .admin-stats span {
+    font-size: 28px;
+  }
+
+  .admin-actions {
+    gap: 10px;
+  }
+
+  .admin-actions button,
+  .schedule-row button {
+    width: 100%;
+  }
+
+  .admin-table-wrapper {
+    margin-inline: -4px;
+    border-radius: 16px;
+  }
+
+  .admin-table {
+    min-width: 760px;
+    font-size: 13px;
+  }
+
+  .admin-table th,
+  .admin-table td {
+    padding: 11px 12px;
+    vertical-align: top;
+  }
+
+  .admin-table input,
+  .admin-table select {
+    min-width: 130px;
+    padding: 8px 9px;
+  }
+
+  .seating-page {
+    padding: 112px 10px 104px;
+  }
+
+  .seating-page .seating-card {
+    padding-inline: 10px;
+  }
+
   .seating-editor {
     grid-template-columns: 1fr;
   }
@@ -1100,7 +1197,7 @@ p {
     width: 100%;
     min-height: 0;
     border-radius: 40px;
-    padding: 24px;
+    padding: 18px 8px;
   }
 
   .guest-palette {
@@ -1132,5 +1229,33 @@ p {
   .seat {
     width: 108px;
     font-size: 10px;
+  }
+}
+
+@media (max-width: 420px) {
+  .brand span {
+    font-size: 19px;
+  }
+
+  .brand small {
+    letter-spacing: 0.1em;
+  }
+
+  .user-chip {
+    max-width: 30vw;
+    padding-inline: 8px;
+  }
+
+  .admin-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-table {
+    min-width: 700px;
+  }
+
+  .site-footer {
+    padding: 20px 14px;
+    font-size: 12px;
   }
 }

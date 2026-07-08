@@ -92,7 +92,10 @@ export default function Layout({ children }) {
           aria-label="Fő navigáció"
         >
           {user ? (
-            <button type="button" onClick={handleSignOut}>Kijelentkezés</button>
+            <>
+              <Link to="/profile" onClick={closeMenu}>Profil</Link>
+              <button type="button" onClick={handleSignOut}>Kijelentkezés</button>
+            </>
           ) : (
             <Link to="/login" onClick={closeMenu}>Bejelentkezés / regisztráció</Link>
           )}

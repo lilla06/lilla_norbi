@@ -5,6 +5,7 @@ import AdminPage from './pages/AdminPage'
 import AdminSchedulePage from './pages/AdminSchedulePage'
 import AdminSeatingPage from './pages/AdminSeatingPage'
 import AuthPage from './pages/AuthPage'
+import ProfilePage from './pages/ProfilePage'
 import RegisterPage from './pages/RegisterPage'
 import RsvpPage from './pages/RsvpPage'
 
@@ -14,6 +15,7 @@ function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<AuthPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/rsvp" element={<RsvpPage />} />
         <Route path="/admin" element={<AdminPage />} />
