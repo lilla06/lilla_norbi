@@ -100,6 +100,11 @@ export default function ProfilePage() {
     setStatusMessage('A jelszavad sikeresen módosítva.')
   }
 
+  async function handleSignOut() {
+    await supabase.auth.signOut()
+    navigate('/')
+  }
+
   if (isLoading) {
     return (
       <main className="auth-page">
@@ -162,7 +167,14 @@ export default function ProfilePage() {
 
         {statusMessage && <p className="form-message">{statusMessage}</p>}
 
-        {!isPasswordRecovery && <Link className="text-link" to="/">Vissza a főoldalra</Link>}
+        {!isPasswordRecovery && (
+          <div className="profile-actions">
+            <Link className="text-link" to="/">Vissza a főoldalra</Link>
+            <button type="button" onClick={handleSignOut}>
+              Kijelentkezés
+            </button>
+          </div>
+        )}
       </section>
     </main>
   )

@@ -73,10 +73,10 @@ export default function Layout({ children }) {
 
         <div className="header-actions">
           {user && (
-            <div className="user-chip" aria-label={`Bejelentkezve: ${getUserName(user)}`}>
+            <Link className="user-chip" to="/profile" aria-label={`Profil: ${getUserName(user)}`}>
               <span className="user-icon" aria-hidden="true" />
               <span>{getUserName(user)}</span>
-            </div>
+            </Link>
           )}
 
           <button

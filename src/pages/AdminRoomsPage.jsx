@@ -468,71 +468,106 @@ export default function AdminRoomsPage() {
 
             {editMode === 'rooms' && (
               <section className="room-edit-list">
-                {rooms.map((room, roomIndex) => (
-                  <article className="room-edit-card" key={room.room_key}>
-                    <label>
-                      Helyszín
-                      <input
-                        type="text"
-                        value={room.location_name}
-                        onChange={(event) =>
-                          updateRoom(roomIndex, 'location_name', event.target.value)
-                        }
-                      />
-                    </label>
-                    <label>
-                      Szoba száma / neve
-                      <input
-                        type="text"
-                        value={room.room_number}
-                        onChange={(event) => updateRoom(roomIndex, 'room_number', event.target.value)}
-                      />
-                    </label>
-                    <label>
-                      Franciaágy
-                      <input
-                        min="0"
-                        type="number"
-                        value={room.double_beds}
-                        onChange={(event) => updateRoom(roomIndex, 'double_beds', event.target.value)}
-                      />
-                    </label>
-                    <label>
-                      Szimpla ágy
-                      <input
-                        min="0"
-                        type="number"
-                        value={room.single_beds}
-                        onChange={(event) => updateRoom(roomIndex, 'single_beds', event.target.value)}
-                      />
-                    </label>
-                    <label>
-                      Pótágy
-                      <input
-                        min="0"
-                        type="number"
-                        value={room.extra_beds}
-                        onChange={(event) => updateRoom(roomIndex, 'extra_beds', event.target.value)}
-                      />
-                    </label>
-                    <label>
-                      Gyerekágy
-                      <input
-                        min="0"
-                        type="number"
-                        value={room.child_beds}
-                        onChange={(event) => updateRoom(roomIndex, 'child_beds', event.target.value)}
-                      />
-                    </label>
-                    <button type="button" onClick={() => removeRoom(roomIndex)}>
-                      Szoba törlése
-                    </button>
-                  </article>
-                ))}
-
                 <button className="room-add-button" type="button" onClick={addRoom}>
                   Új szoba hozzáadása
                 </button>
+
+                <div className="admin-table-wrapper">
+                  <table className="admin-table room-edit-table">
+                    <thead>
+                      <tr>
+                        <th>Helyszín</th>
+                        <th>Szoba száma / neve</th>
+                        <th>Franciaágy</th>
+                        <th>Szimpla ágy</th>
+                        <th>Pótágy</th>
+                        <th>Gyerekágy</th>
+                        <th>Művelet</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rooms.length === 0 ? (
+                        <tr>
+                          <td colSpan="7">Még nincs szoba megadva.</td>
+                        </tr>
+                      ) : (
+                        rooms.map((room, roomIndex) => (
+                          <tr key={room.room_key}>
+                            <td>
+                              <input
+                                aria-label="Helyszín"
+                                type="text"
+                                value={room.location_name}
+                                onChange={(event) =>
+                                  updateRoom(roomIndex, 'location_name', event.target.value)
+                                }
+                              />
+                            </td>
+                            <td>
+                              <input
+                                aria-label="Szoba száma vagy neve"
+                                type="text"
+                                value={room.room_number}
+                                onChange={(event) =>
+                                  updateRoom(roomIndex, 'room_number', event.target.value)
+                                }
+                              />
+                            </td>
+                            <td>
+                              <input
+                                aria-label="Franciaágyak száma"
+                                min="0"
+                                type="number"
+                                value={room.double_beds}
+                                onChange={(event) =>
+                                  updateRoom(roomIndex, 'double_beds', event.target.value)
+                                }
+                              />
+                            </td>
+                            <td>
+                              <input
+                                aria-label="Szimpla ágyak száma"
+                                min="0"
+                                type="number"
+                                value={room.single_beds}
+                                onChange={(event) =>
+                                  updateRoom(roomIndex, 'single_beds', event.target.value)
+                                }
+                              />
+                            </td>
+                            <td>
+                              <input
+                                aria-label="Pótágyak száma"
+                                min="0"
+                                type="number"
+                                value={room.extra_beds}
+                                onChange={(event) =>
+                                  updateRoom(roomIndex, 'extra_beds', event.target.value)
+                                }
+                              />
+                            </td>
+                            <td>
+                              <input
+                                aria-label="Gyerekágyak száma"
+                                min="0"
+                                type="number"
+                                value={room.child_beds}
+                                onChange={(event) =>
+                                  updateRoom(roomIndex, 'child_beds', event.target.value)
+                                }
+                              />
+                            </td>
+                            <td>
+                              <button type="button" onClick={() => removeRoom(roomIndex)}>
+                                Törlés
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </section>
             )}
 
