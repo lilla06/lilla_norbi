@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 const defaultRoundTableCount = 13
@@ -96,6 +97,7 @@ function getSeatPosition(seatIndex, seatCount, tableType) {
 }
 
 export default function AdminSeatingPage() {
+  const navigate = useNavigate()
   const [tables, setTables] = useState([])
   const [savedTables, setSavedTables] = useState([])
   const [guestNames, setGuestNames] = useState([])
@@ -114,7 +116,7 @@ export default function AdminSeatingPage() {
       const user = userData.user
 
       if (!user) {
-        window.location.href = '/login'
+        navigate('/login')
         return
       }
 
@@ -163,7 +165,7 @@ export default function AdminSeatingPage() {
     }
 
     loadSeating()
-  }, [])
+  }, [navigate])
 
   const assignedGuests = tables.flatMap((table) => table.seats).filter(Boolean)
   const availableGuests = guestNames.filter((guest) => !assignedGuests.includes(guest))
@@ -543,7 +545,7 @@ export default function AdminSeatingPage() {
           </div>
         )}
 
-        <a className="text-link" href="/">Vissza a főoldalra</a>
+        <Link className="text-link" to="/">Vissza a főoldalra</Link>
       </section>
     </main>
   )

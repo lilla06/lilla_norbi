@@ -1,7 +1,9 @@
 import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 export default function AuthPage() {
+  const navigate = useNavigate()
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -35,7 +37,7 @@ export default function AuthPage() {
       return
     }
 
-    window.location.href = '/rsvp'
+    navigate('/rsvp')
   }
 
   return (
@@ -81,10 +83,10 @@ export default function AuthPage() {
         {statusMessage && <p className="form-message">{statusMessage}</p>}
 
         <p className="auth-switch">
-          Még nem jártál itt? <a href="/register">Regisztrálj</a>
+          Még nem jártál itt? <Link to="/register">Regisztrálj</Link>
         </p>
 
-        <a className="text-link" href="/">Vissza a főoldalra</a>
+        <Link className="text-link" to="/">Vissza a főoldalra</Link>
       </section>
     </main>
   )

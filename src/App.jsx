@@ -1,3 +1,4 @@
+import { Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
 import HomePage from './pages/HomePage'
 import AdminPage from './pages/AdminPage'
@@ -8,34 +9,20 @@ import RegisterPage from './pages/RegisterPage'
 import RsvpPage from './pages/RsvpPage'
 
 function App() {
-  const path = window.location.pathname
-  let page = <HomePage />
-
-  if (path === '/login') {
-    page = <AuthPage />
-  }
-
-  if (path === '/register') {
-    page = <RegisterPage />
-  }
-
-  if (path === '/rsvp') {
-    page = <RsvpPage />
-  }
-
-  if (path === '/admin') {
-    page = <AdminPage />
-  }
-
-  if (path === '/admin/schedule') {
-    page = <AdminSchedulePage />
-  }
-
-  if (path === '/admin/seating') {
-    page = <AdminSeatingPage />
-  }
-
-  return <Layout>{page}</Layout>
+  return (
+    <Layout>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/login" element={<AuthPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/rsvp" element={<RsvpPage />} />
+        <Route path="/admin" element={<AdminPage />} />
+        <Route path="/admin/schedule" element={<AdminSchedulePage />} />
+        <Route path="/admin/seating" element={<AdminSeatingPage />} />
+        <Route path="*" element={<HomePage />} />
+      </Routes>
+    </Layout>
+  )
 }
 
 export default App

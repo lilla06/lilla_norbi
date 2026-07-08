@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 function getUserName(user) {
@@ -12,6 +13,8 @@ function isAdmin(user) {
 export default function Layout({ children }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [user, setUser] = useState(null)
+  const location = useLocation()
+  const navigate = useNavigate()
 
   useEffect(() => {
     async function loadSession() {
@@ -33,6 +36,16 @@ export default function Layout({ children }) {
     }
   }, [])
 
+  useEffect(() => {
+    if (!location.hash) {
+      return
+    }
+
+    requestAnimationFrame(() => {
+      document.querySelector(location.hash)?.scrollIntoView({ behavior: 'smooth' })
+    })
+  }, [location])
+
   function closeMenu() {
     setIsMenuOpen(false)
   }
@@ -40,16 +53,16 @@ export default function Layout({ children }) {
   async function handleSignOut() {
     await supabase.auth.signOut()
     closeMenu()
-    window.location.href = '/'
+    navigate('/')
   }
 
   return (
     <>
       <header className="site-header">
-        <a className="brand" href="/" aria-label="Lilla és Norbi főoldal">
+        <Link className="brand" to="/" aria-label="Lilla és Norbi főoldal">
           <span>Lilla & Norbi</span>
           <small>2027. június 5.</small>
-        </a>
+        </Link>
 
         <div className="header-actions">
           {user && (
@@ -81,14 +94,14 @@ export default function Layout({ children }) {
           {user ? (
             <button type="button" onClick={handleSignOut}>Kijelentkezés</button>
           ) : (
-            <a href="/login" onClick={closeMenu}>Bejelentkezés / regisztráció</a>
+            <Link to="/login" onClick={closeMenu}>Bejelentkezés / regisztráció</Link>
           )}
-          <a href="/rsvp" onClick={closeMenu}>RSVP</a>
-          {isAdmin(user) && <a href="/admin" onClick={closeMenu}>Admin vendéglista</a>}
-          {isAdmin(user) && <a href="/admin/schedule" onClick={closeMenu}>Admin menetrend</a>}
-          {isAdmin(user) && <a href="/admin/seating" onClick={closeMenu}>Admin ülésrend</a>}
-          <a href="/#important-info" onClick={closeMenu}>Fontos információk</a>
-          <a href="/#dress-code" onClick={closeMenu}>Dress code</a>
+          <Link to="/rsvp" onClick={closeMenu}>RSVP</Link>
+          {isAdmin(user) && <Link to="/admin" onClick={closeMenu}>Admin vendéglista</Link>}
+          {isAdmin(user) && <Link to="/admin/schedule" onClick={closeMenu}>Admin menetrend</Link>}
+          {isAdmin(user) && <Link to="/admin/seating" onClick={closeMenu}>Admin ülésrend</Link>}
+          <Link to="/#important-info" onClick={closeMenu}>Fontos információk</Link>
+          <Link to="/#dress-code" onClick={closeMenu}>Dress code</Link>
         </nav>
       </header>
 

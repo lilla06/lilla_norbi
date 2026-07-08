@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 export default function RegisterPage() {
@@ -126,10 +127,10 @@ export default function RegisterPage() {
         {statusMessage && <p className="form-message">{statusMessage}</p>}
 
         <p className="auth-switch">
-          Már regisztráltál? <a href="/login">Lépj be</a>
+          Már regisztráltál? <Link to="/login">Lépj be</Link>
         </p>
 
-        <a className="text-link" href="/">Vissza a főoldalra</a>
+        <Link className="text-link" to="/">Vissza a főoldalra</Link>
       </section>
     </main>
   )

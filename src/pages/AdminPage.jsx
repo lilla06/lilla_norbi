@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 const guestLabels = [
@@ -35,6 +36,7 @@ function hasOtherAllergy(guest) {
 }
 
 export default function AdminPage() {
+  const navigate = useNavigate()
   const [guests, setGuests] = useState([])
   const [savedGuests, setSavedGuests] = useState([])
   const [isEditing, setIsEditing] = useState(false)
@@ -49,7 +51,7 @@ export default function AdminPage() {
       const user = userData.user
 
       if (!user) {
-        window.location.href = '/login'
+        navigate('/login')
         return
       }
 
@@ -78,7 +80,7 @@ export default function AdminPage() {
     }
 
     loadGuests()
-  }, [])
+  }, [navigate])
 
   function updateGuestField(guestId, field, value) {
     setGuests((currentGuests) =>
@@ -296,7 +298,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        <a className="text-link" href="/">Vissza a főoldalra</a>
+        <Link className="text-link" to="/">Vissza a főoldalra</Link>
       </section>
     </main>
   )

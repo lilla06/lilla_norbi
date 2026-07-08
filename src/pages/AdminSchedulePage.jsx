@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 const timeOptions = Array.from({ length: 96 }, (_, index) => {
@@ -33,6 +34,7 @@ function cloneScheduleItems(items) {
 }
 
 export default function AdminSchedulePage() {
+  const navigate = useNavigate()
   const [scheduleItems, setScheduleItems] = useState([])
   const [savedScheduleItems, setSavedScheduleItems] = useState([])
   const [isEditing, setIsEditing] = useState(false)
@@ -47,7 +49,7 @@ export default function AdminSchedulePage() {
       const user = userData.user
 
       if (!user) {
-        window.location.href = '/login'
+        navigate('/login')
         return
       }
 
@@ -82,7 +84,7 @@ export default function AdminSchedulePage() {
     }
 
     loadSchedule()
-  }, [])
+  }, [navigate])
 
   function updateScheduleItem(index, field, value) {
     setScheduleItems((currentItems) =>
@@ -282,7 +284,7 @@ export default function AdminSchedulePage() {
           </>
         )}
 
-        <a className="text-link" href="/">Vissza a főoldalra</a>
+        <Link className="text-link" to="/">Vissza a főoldalra</Link>
       </section>
     </main>
   )

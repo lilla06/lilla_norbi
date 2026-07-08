@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 const allergyOptions = ['gluténérzékeny', 'laktózérzékeny', 'egyéb']
@@ -36,6 +37,7 @@ function formatAllergies(guest) {
 }
 
 export default function RsvpPage() {
+  const navigate = useNavigate()
   const [currentUser, setCurrentUser] = useState(null)
   const [response, setResponse] = useState('')
   const [guestCount, setGuestCount] = useState(1)
@@ -52,7 +54,7 @@ export default function RsvpPage() {
       const user = userData.user
 
       if (!user) {
-        window.location.href = '/login'
+        navigate('/login')
         return
       }
 
@@ -86,7 +88,7 @@ export default function RsvpPage() {
     }
 
     loadRsvp()
-  }, [])
+  }, [navigate])
 
   function handleResponseChange(nextResponse) {
     setResponse(nextResponse)
@@ -305,7 +307,7 @@ export default function RsvpPage() {
           </form>
         )}
 
-        <a className="text-link" href="/">Vissza a főoldalra</a>
+        <Link className="text-link" to="/">Vissza a főoldalra</Link>
       </section>
     </main>
   )
