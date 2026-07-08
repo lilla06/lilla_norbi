@@ -376,7 +376,9 @@ export default function AdminSeatingPage() {
           <div>
             <div className="admin-actions">
               <button type="button" onClick={() => setShowLabelColors((current) => !current)}>
-                {showLabelColors ? 'Label színezés kikapcsolása' : 'Label színezés bekapcsolása'}
+                {showLabelColors
+                  ? 'Kategória szerinti színezés kikapcsolása'
+                  : 'Kategória szerinti színezés bekapcsolása'}
               </button>
 
               {!isEditing ? (

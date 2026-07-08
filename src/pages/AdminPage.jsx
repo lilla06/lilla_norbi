@@ -216,7 +216,7 @@ export default function AdminPage() {
                     <th>Név</th>
                     <th>Válasz</th>
                     <th>Allergiák</th>
-                    <th>Label</th>
+                    <th>Kategória</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -281,12 +281,12 @@ export default function AdminPage() {
                             >
                               {guestLabels.map((label) => (
                                 <option value={label} key={label || 'empty-label'}>
-                                  {label || 'Nincs label'}
+                                {label || 'Nincs kategória'}
                                 </option>
                               ))}
                             </select>
                           ) : (
-                            guest.label || 'Nincs label'
+                            guest.label || 'Nincs kategória'
                           )}
                         </td>
                       </tr>

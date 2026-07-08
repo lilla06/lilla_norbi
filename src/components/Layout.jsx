@@ -12,6 +12,7 @@ function isAdmin(user) {
 
 export default function Layout({ children }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false)
   const [user, setUser] = useState(null)
   const location = useLocation()
   const navigate = useNavigate()
@@ -48,6 +49,12 @@ export default function Layout({ children }) {
 
   function closeMenu() {
     setIsMenuOpen(false)
+    setIsAdminMenuOpen(false)
+  }
+
+  function navigateFromMenu(path) {
+    closeMenu()
+    navigate(path)
   }
 
   async function handleSignOut() {
@@ -100,9 +107,33 @@ export default function Layout({ children }) {
             <Link to="/login" onClick={closeMenu}>Bejelentkezés / regisztráció</Link>
           )}
           <Link to="/rsvp" onClick={closeMenu}>RSVP</Link>
-          {isAdmin(user) && <Link to="/admin" onClick={closeMenu}>Admin vendéglista</Link>}
-          {isAdmin(user) && <Link to="/admin/schedule" onClick={closeMenu}>Admin menetrend</Link>}
-          {isAdmin(user) && <Link to="/admin/seating" onClick={closeMenu}>Admin ülésrend</Link>}
+          {isAdmin(user) && (
+            <div className="menu-group">
+              <button
+                type="button"
+                aria-expanded={isAdminMenuOpen}
+                aria-controls="admin-submenu"
+                onClick={() => setIsAdminMenuOpen((current) => !current)}
+              >
+                Admin oldalak
+              </button>
+              <div
+                id="admin-submenu"
+                className={`submenu ${isAdminMenuOpen ? 'is-open' : ''}`}
+              >
+                <button type="button" onClick={() => navigateFromMenu('/admin')}>Vendéglista</button>
+                <button type="button" onClick={() => navigateFromMenu('/admin/rooms')}>
+                  Szobabeosztás
+                </button>
+                <button type="button" onClick={() => navigateFromMenu('/admin/schedule')}>
+                  Menetrend
+                </button>
+                <button type="button" onClick={() => navigateFromMenu('/admin/seating')}>
+                  Ülésrend
+                </button>
+              </div>
+            </div>
+          )}
           <Link to="/#important-info" onClick={closeMenu}>Fontos információk</Link>
           <Link to="/#dress-code" onClick={closeMenu}>Dress code</Link>
         </nav>
