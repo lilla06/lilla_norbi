@@ -10,6 +10,17 @@ function isAdmin(user) {
   return user?.app_metadata?.role === 'admin'
 }
 
+const homepageSections = [
+  { hash: 'hero', label: 'Lilla & Norbi' },
+  { hash: 'invitation', label: 'Meghívó' },
+  { hash: 'quick-actions', label: 'Gyors elérés' },
+  { hash: 'story', label: 'Az út idáig' },
+  { hash: 'important-info', label: 'Fontos információk' },
+  { hash: 'schedule', label: 'Menetrend' },
+  { hash: 'dress-code', label: 'Dress code' },
+  { hash: 'gallery', label: 'Pillanatok' },
+]
+
 export default function Layout({ children }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false)
@@ -98,6 +109,16 @@ export default function Layout({ children }) {
           className={`main-menu ${isMenuOpen ? 'is-open' : ''}`}
           aria-label="Fő navigáció"
         >
+          {homepageSections.map((section) => (
+            <Link
+              key={section.hash}
+              to={`/#${section.hash}`}
+              onClick={closeMenu}
+            >
+              {section.label}
+            </Link>
+          ))}
+          <Link to="/rsvp" onClick={closeMenu}>RSVP</Link>
           {user ? (
             <>
               <Link to="/profile" onClick={closeMenu}>Profil</Link>
@@ -106,7 +127,6 @@ export default function Layout({ children }) {
           ) : (
             <Link to="/login" onClick={closeMenu}>Bejelentkezés / regisztráció</Link>
           )}
-          <Link to="/rsvp" onClick={closeMenu}>RSVP</Link>
           {isAdmin(user) && (
             <div className="menu-group">
               <button
@@ -137,8 +157,6 @@ export default function Layout({ children }) {
               </div>
             </div>
           )}
-          <Link to="/#important-info" onClick={closeMenu}>Fontos információk</Link>
-          <Link to="/#dress-code" onClick={closeMenu}>Dress code</Link>
         </nav>
       </header>
 

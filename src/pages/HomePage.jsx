@@ -89,7 +89,7 @@ const galleryImages = [
 export default function HomePage() {
   return (
     <main>
-      <section className="hero">
+      <section id="hero" className="hero">
         <div
           className="hero-bg"
           style={{ backgroundImage: `url(${heroPhoto})` }}
@@ -134,7 +134,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="quick-actions" aria-label="Gyors elérés">
+      <section id="quick-actions" className="quick-actions" aria-label="Gyors elérés">
         {quickActions.map((action) =>
           action.type === 'route' ? (
             <Link className="quick-action" to={action.to} key={action.label}>
