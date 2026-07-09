@@ -1136,17 +1136,18 @@ p {
 }
 
 .budget-bar-chart {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
-  gap: 12px;
-  align-items: end;
+  display: flex;
+  gap: 4px;
+  align-items: start;
+  width: 100%;
   min-height: 280px;
   padding-top: 12px;
 }
 
 .budget-bar-group {
   display: grid;
-  gap: 10px;
+  flex: 1 1 0;
+  gap: 8px;
   justify-items: center;
   min-width: 0;
 }
@@ -1154,15 +1155,17 @@ p {
 .budget-bar-pair {
   display: flex;
   align-items: flex-end;
-  gap: 6px;
+  justify-content: center;
+  gap: 2px;
   width: 100%;
   height: 220px;
 }
 
 .budget-bar {
-  flex: 1;
+  flex: 1 1 0;
+  max-width: 12px;
   min-height: 4px;
-  border-radius: 10px 10px 4px 4px;
+  border-radius: 3px 3px 1px 1px;
 }
 
 .budget-bar-planned {
@@ -1174,11 +1177,15 @@ p {
 }
 
 .budget-bar-group > span {
+  width: 14px;
   color: #4e3d2a;
   font-family: Arial, sans-serif;
   font-size: 11px;
   line-height: 1.2;
-  text-align: center;
+  white-space: nowrap;
+  text-align: left;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
 }
 
 .budget-progress-block {
