@@ -204,7 +204,9 @@ export default function AdminRoomsPage() {
   }, [navigate])
 
   const assignedGuests = rooms.flatMap((room) => Object.values(room.assignments)).filter(Boolean)
-  const availableGuests = guestNames.filter((guest) => !assignedGuests.includes(guest))
+  const availableGuests = guestNames
+    .filter((guest) => !assignedGuests.includes(guest))
+    .sort((left, right) => left.localeCompare(right, 'hu'))
   const guestResponseByName = new Map(guestResponses.map((guest) => [guest.name, guest.response]))
   const roomWarnings = rooms.flatMap((room) =>
     Object.values(room.assignments)

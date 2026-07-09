@@ -82,6 +82,29 @@ function getLeafCategories(categories) {
   )
 }
 
+function getCategoryLabel(categoryId, categories) {
+  const category = categories.find((item) => item.id === categoryId)
+  if (!category) {
+    return 'Ismeretlen kategória'
+  }
+
+  if (category.parent_id) {
+    const parent = categories.find((item) => item.id === category.parent_id)
+    return parent ? `${parent.name} / ${category.name}` : category.name
+  }
+
+  return category.name
+}
+
+function getSortedLeafCategories(categories) {
+  return getLeafCategories(categories).sort((left, right) =>
+    getCategoryLabel(left.id, categories).localeCompare(
+      getCategoryLabel(right.id, categories),
+      'hu',
+    ),
+  )
+}
+
 function getCategoryTotals(category, categories, transactions) {
   const children = categories.filter((item) => item.parent_id === category.id)
 
@@ -208,9 +231,7 @@ export default function AdminBudgetPage() {
         const loadedCategories = categoryResult.data || []
         setCategories(loadedCategories)
         setSavedCategories(cloneCategories(loadedCategories))
-        setExpandedCategoryIds(
-          new Set(loadedCategories.filter((category) => !category.parent_id).map((category) => category.id)),
-        )
+        setExpandedCategoryIds(new Set())
       }
 
       if (transactionResult.error) {
@@ -228,7 +249,7 @@ export default function AdminBudgetPage() {
   }, [navigate])
 
   const categoryTree = useMemo(() => buildCategoryTree(categories), [categories])
-  const leafCategories = useMemo(() => getLeafCategories(categories), [categories])
+  const leafCategories = useMemo(() => getSortedLeafCategories(categories), [categories])
 
   const summaryRows = useMemo(
     () =>
@@ -476,20 +497,6 @@ export default function AdminBudgetPage() {
     setIsSubmitting(false)
     setViewMode('summary')
     setStatusMessage('A tranzakciók mentve.')
-  }
-
-  function getCategoryLabel(categoryId) {
-    const category = categories.find((item) => item.id === categoryId)
-    if (!category) {
-      return 'Ismeretlen kategória'
-    }
-
-    if (category.parent_id) {
-      const parent = categories.find((item) => item.id === category.parent_id)
-      return parent ? `${parent.name} / ${category.name}` : category.name
-    }
-
-    return category.name
   }
 
   if (isLoading) {
@@ -767,7 +774,7 @@ export default function AdminBudgetPage() {
                                     ))}
                                 </select>
                               ) : category.parent_id ? (
-                                getCategoryLabel(category.parent_id)
+                                getCategoryLabel(category.parent_id, categories)
                               ) : (
                                 'Fő kategória'
                               )}
@@ -919,12 +926,12 @@ export default function AdminBudgetPage() {
                                   <option value="">Válassz kategóriát</option>
                                   {leafCategories.map((category) => (
                                     <option value={category.id} key={category.id}>
-                                      {getCategoryLabel(category.id)}
+                                      {getCategoryLabel(category.id, categories)}
                                     </option>
                                   ))}
                                 </select>
                               ) : (
-                                getCategoryLabel(transaction.category_id)
+                                getCategoryLabel(transaction.category_id, categories)
                               )}
                             </td>
                             <td>

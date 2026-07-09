@@ -168,7 +168,9 @@ export default function AdminSeatingPage() {
   }, [navigate])
 
   const assignedGuests = tables.flatMap((table) => table.seats).filter(Boolean)
-  const availableGuests = guestNames.filter((guest) => !assignedGuests.includes(guest))
+  const availableGuests = guestNames
+    .filter((guest) => !assignedGuests.includes(guest))
+    .sort((left, right) => left.localeCompare(right, 'hu'))
   const guestResponseByName = new Map(guestResponses.map((guest) => [guest.name, guest.response]))
   const guestLabelByName = new Map(guestResponses.map((guest) => [guest.name, guest.label]))
   const getVisibleGuestLabelClass = (guestName) =>
