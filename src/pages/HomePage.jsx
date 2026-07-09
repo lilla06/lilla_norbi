@@ -1,202 +1,244 @@
-function createDummyImage(title, primaryColor, secondaryColor, accentColor) {
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 760" role="img" aria-label="${title}">
-      <defs>
-        <linearGradient id="sky" x1="0" x2="1" y1="0" y2="1">
-          <stop offset="0%" stop-color="${primaryColor}" />
-          <stop offset="62%" stop-color="${secondaryColor}" />
-          <stop offset="100%" stop-color="#f5eddf" />
-        </linearGradient>
-        <radialGradient id="glow" cx="50%" cy="24%" r="38%">
-          <stop offset="0%" stop-color="${accentColor}" stop-opacity="0.72" />
-          <stop offset="100%" stop-color="${accentColor}" stop-opacity="0" />
-        </radialGradient>
-      </defs>
-      <rect width="1200" height="760" fill="url(#sky)" />
-      <rect width="1200" height="760" fill="url(#glow)" />
-      <circle cx="880" cy="150" r="92" fill="${accentColor}" opacity="0.82" />
-      <path d="M0 640 C160 540 290 600 440 512 C620 404 762 560 936 456 C1048 388 1136 420 1200 380 L1200 760 L0 760 Z" fill="#24351f" opacity="0.82" />
-      <path d="M0 690 C180 610 340 650 510 590 C710 520 870 650 1200 520 L1200 760 L0 760 Z" fill="#2d4726" opacity="0.78" />
-      <g opacity="0.84">
-        <path d="M130 620 l64 -220 l64 220 Z" fill="#1d341d" />
-        <path d="M250 650 l82 -300 l82 300 Z" fill="#1b2f1b" />
-        <path d="M980 635 l72 -260 l72 260 Z" fill="#1d341d" />
-        <path d="M1080 674 l92 -340 l92 340 Z" fill="#172b18" />
-      </g>
-      <text x="60" y="92" fill="#fff8e7" font-family="Georgia, serif" font-size="44" opacity="0.94">${title}</text>
-      <text x="62" y="142" fill="${accentColor}" font-family="Arial, sans-serif" font-size="22" letter-spacing="5">DUMMY IMAGE</text>
-    </svg>
-  `
+import { Link } from 'react-router-dom'
+import heroPhoto from '../assets/fcaa2d02-5523-4e23-b660-656f0c8e0eea.jpg'
+import storyPhoto from '../assets/f15f1334-c156-4182-9500-87acae77f6e2.jpg'
+import infoPhoto from '../assets/d336ad11-89cc-48ea-b1f0-0b53cef877b8.jpg'
+import galleryBacklit from '../assets/f8465e2b-cc8c-4ece-ba30-7f6d97183f94.jpg'
+import galleryPortrait from '../assets/019f4b71-54ab-4770-b9ec-eb99c7b02036.jpg'
+import galleryCheekKiss from '../assets/d982c42b-696c-494e-8b03-02186cdeb177.jpg'
+import galleryDip from '../assets/d61d070b-3781-4ea9-9949-c9b50272db20.jpg'
+import galleryRing from '../assets/c7e247fc-cbb7-40a4-b78c-c583eb73b609.jpg'
+import galleryHands from '../assets/61da3cf8-c618-49c7-bcf5-f21c77e268ec.jpg'
+import galleryHighFive from '../assets/2c30ff7d-604d-40cb-ad01-e8141e1c4f31.jpg'
+import gallerySitting from '../assets/2bd4f1fd-b6e8-4b93-b8f9-fb9f1c688ccb.jpg'
 
-  return `data:image/svg+xml,${encodeURIComponent(svg)}`
-}
+const quickActions = [
+  { label: 'Visszajelzés', description: 'RSVP a nagy napra', to: '/rsvp', type: 'route' },
+  { label: 'Menetrend', description: 'A nap programja', href: '#schedule', type: 'anchor' },
+  { label: 'Fontos infók', description: 'Helyszín és tudnivalók', href: '#important-info', type: 'anchor' },
+  { label: 'Dress code', description: 'Az esküvő stílusa', href: '#dress-code', type: 'anchor' },
+]
 
-const homepageImages = {
-  hero: {
-    src: createDummyImage('Kozos pillanat az erdoben', '#1f3b25', '#6a4a1c', '#d4af37'),
-    alt: 'Dummy kep Lillarol es Norbirol erdei hangulatban',
-    caption: 'Ide kerülhet egy kedvenc közös fotó rólatok.',
-  },
-  info: {
-    src: createDummyImage('Helyszin es hangulat', '#24351f', '#8b6f47', '#caa74d'),
-    alt: 'Dummy kep az eskuvoi helyszin hangulatarol',
-  },
-  dressCode: {
-    src: createDummyImage('Dress code inspiracio', '#50693d', '#d7c8a7', '#a77c20'),
-    alt: 'Dummy kep zold barna bezs es arany dress code inspiracioval',
-  },
-}
-
-const galleryImages = [
+const storyMilestones = [
   {
-    title: 'Erdei fenyek',
-    src: createDummyImage('Erdei fenyek', '#1f3b25', '#4e3d2a', '#d4af37'),
-    alt: 'Dummy galeriakep erdei fenyekkel',
+    year: '2019',
+    title: 'Ahol minden kezdődött',
+    text: 'Egy baráti társaságban ismerkedtünk meg, és már az első beszélgetés is órákig tartott.',
   },
   {
-    title: 'Arany reszletek',
-    src: createDummyImage('Arany reszletek', '#6a4a1c', '#f5eddf', '#d4af37'),
-    alt: 'Dummy galeriakep arany es bezs reszletekkel',
+    year: '2021',
+    title: 'Az első közös utazás',
+    text: 'Egy erdei kiránduláson jöttünk rá, hogy a csendben is jó együtt lenni.',
   },
   {
-    title: 'Moha es level',
-    src: createDummyImage('Moha es level', '#2d4726', '#c7d3a6', '#a77c20'),
-    alt: 'Dummy galeriakep mohas leveles hangulattal',
+    year: '2025',
+    title: 'Az igen',
+    text: 'Egy naplementés séta végén, a fák között tettük fel életünk legszebb kérdését.',
   },
   {
-    title: 'Esti meseerdo',
-    src: createDummyImage('Esti meseerdo', '#172b18', '#50693d', '#d4af37'),
-    alt: 'Dummy galeriakep esti erdei hangulattal',
+    year: '2027',
+    title: 'A nagy nap',
+    text: 'Most pedig szeretnénk, ha ti is velünk lennétek, amikor kimondjuk a boldogító igent.',
   },
 ]
 
-const imagePlan = [
+const schedulePreview = [
+  { time: '15:00', title: 'Vendégvárás', text: 'Érkezés, üdvözlő ital és fotózkodás a kertben.' },
+  { time: '16:00', title: 'Szertartás', text: 'A ceremónia a fák alatt, meghitt hangulatban.' },
+  { time: '18:00', title: 'Vacsora', text: 'Közös ünnepi vacsora és pohárköszöntők.' },
+  { time: '21:00', title: 'Buli', text: 'Zene, tánc és önfeledt mulatozás késő éjszakáig.' },
+]
+
+const infoCards = [
   {
-    title: 'Tartalmi képek rólatok',
-    amount: '6-8 kép',
-    description: 'közös portrék, jegyesfotók, természetes nevetős pillanatok',
+    title: 'Időpont',
+    text: '2027. június 5., szombat. A szertartás 16:00-kor kezdődik, kérünk, érkezzetek időben.',
   },
   {
-    title: 'Hero / nyitókép',
-    amount: '1 erős fő kép',
-    description: 'vízszintes, jó minőségű fotó, amin bőven van tér a szöveg körül',
+    title: 'Helyszín',
+    text: 'Az esküvő egy erdő szélén álló birtokon lesz. A pontos címet és térképet hamarosan itt találjátok.',
   },
   {
-    title: 'Háttérképek vagy textúrák',
-    amount: '3-4 darab',
-    description: 'erdő, levelek, moha, fényfüzér vagy arany részletek',
+    title: 'Parkolás',
+    text: 'A helyszínen ingyenes parkolási lehetőség áll rendelkezésre a vendégek számára.',
   },
   {
-    title: 'Dekoratív szekcióképek',
-    amount: '4-6 kép',
-    description: 'helyszín, részletek, virágok, meghívó- vagy dekorhangulat',
+    title: 'Szállás',
+    text: 'A távolabbról érkezőknek szállást szervezünk a közelben. A részleteket a visszajelzés után egyeztetjük.',
   },
-  {
-    title: 'Galéria',
-    amount: '8-12 kép',
-    description: 'lapozható válogatás a kedvenc közös képekből',
-  },
+]
+
+const dressCodeSwatches = [
+  { name: 'Erdőzöld', color: '#2d4726' },
+  { name: 'Mohaárnyalat', color: '#50693d' },
+  { name: 'Meleg barna', color: '#6a4a1c' },
+  { name: 'Homokbézs', color: '#d7c8a7' },
+  { name: 'Óarany', color: '#a77c20' },
+]
+
+const galleryImages = [
+  { src: galleryBacklit, alt: 'Lilla és Norbi naplementében a tónál' },
+  { src: galleryPortrait, alt: 'Lilla és Norbi közös portré' },
+  { src: galleryCheekKiss, alt: 'Norbi arcon csókolja Lillát' },
+  { src: galleryDip, alt: 'Lilla és Norbi játékos pillanata' },
+  { src: galleryRing, alt: 'Az eljegyzési gyűrű közeli képe' },
+  { src: galleryHands, alt: 'Lilla és Norbi kézen fogva a tónál' },
+  { src: galleryHighFive, alt: 'Lilla és Norbi a fűz alatt a tóparton' },
+  { src: gallerySitting, alt: 'Lilla és Norbi egy fa alatt ülve' },
 ]
 
 export default function HomePage() {
   return (
     <main>
       <section className="hero">
-        <div className="hero-art" aria-hidden="true">
-          <span className="moon" />
-          <span className="tree tree-left" />
-          <span className="tree tree-center" />
-          <span className="tree tree-right" />
-        </div>
+        <div
+          className="hero-bg"
+          style={{ backgroundImage: `url(${heroPhoto})` }}
+          aria-hidden="true"
+        />
+        <div className="hero-overlay" aria-hidden="true" />
 
-        <div className="hero-layout">
-          <div className="hero-content">
-            <p className="eyebrow">Enchanted forest wedding</p>
-            <h1>Lilla & Norbi</h1>
-            <p className="wedding-date">2027. június 5.</p>
-            <p>
-              Szeretettel várunk az esküvői weboldalunkon. A részletek hamarosan
-              érkeznek.
-            </p>
-          </div>
-
-          <figure className="hero-photo-card">
-            <img src={homepageImages.hero.src} alt={homepageImages.hero.alt} />
-            <figcaption>{homepageImages.hero.caption}</figcaption>
-          </figure>
-        </div>
-      </section>
-
-      <section className="image-break" aria-label="Esküvői hangulatkép">
-        <img src={homepageImages.info.src} alt={homepageImages.info.alt} />
-        <div>
-          <p className="eyebrow">Képes hangulat</p>
-          <h2>Erdei fények, meleg részletek</h2>
-          <p>
-            Ezek a dummy képek később könnyen lecserélhetők valódi fotókra,
-            miközben a layout már készen áll a képes tartalomra.
+        <div className="hero-content hero-content-centered">
+          <p className="eyebrow">Enchanted forest wedding</p>
+          <h1>Lilla &amp; Norbi</h1>
+          <p className="wedding-date">2027. június 5.</p>
+          <p className="hero-lead">
+            Két ember, egy erdő és egy ígéret. Szeretettel hívunk, hogy velünk
+            ünnepeld életünk legszebb napját.
           </p>
+          <div className="hero-cta">
+            <Link className="btn-primary" to="/rsvp">
+              Visszajelzés
+            </Link>
+            <a className="btn-ghost" href="#invitation">
+              Tovább
+            </a>
+          </div>
         </div>
       </section>
 
-      <section id="important-info" className="content-section">
-        <p className="eyebrow">Vendéginformációk</p>
-        <h2>Fontos információk</h2>
-        <p>
-          Itt fogjuk összegyűjteni a helyszínnel, időpontokkal, parkolással és
-          egyéb praktikus tudnivalókkal kapcsolatos részleteket.
+      <section id="invitation" className="invitation-section">
+        <div className="invitation-card">
+          <p className="eyebrow">Meghívó</p>
+          <h2>Kedves Vendégeink!</h2>
+          <p>
+            Nagy örömmel osztjuk meg veletek, hogy összekötjük az életünket. Egy
+            meghitt, erdei hangulatú napra készülünk, ahol a legfontosabb emberek
+            vesznek körül minket.
+          </p>
+          <p>
+            Ezen az oldalon minden fontos tudnivalót összegyűjtöttünk: a nap
+            menetrendjét, a helyszínt, a dress code-ot és a visszajelzés
+            lehetőségét. Kérünk, nézz körül, és jelezd, hogy számíthatunk-e rád.
+          </p>
+          <p className="invitation-signature">Szeretettel, Lilla &amp; Norbi</p>
+        </div>
+      </section>
+
+      <section className="quick-actions" aria-label="Gyors elérés">
+        {quickActions.map((action) =>
+          action.type === 'route' ? (
+            <Link className="quick-action" to={action.to} key={action.label}>
+              <span className="quick-action-title">{action.label}</span>
+              <span className="quick-action-text">{action.description}</span>
+            </Link>
+          ) : (
+            <a className="quick-action" href={action.href} key={action.label}>
+              <span className="quick-action-title">{action.label}</span>
+              <span className="quick-action-text">{action.description}</span>
+            </a>
+          ),
+        )}
+      </section>
+
+      <section id="story" className="editorial-section">
+        <div className="editorial-media">
+          <img src={storyPhoto} alt="Lilla és Norbi a fűzfa alatt a tóparton" />
+        </div>
+        <div className="editorial-body">
+          <p className="eyebrow">A történetünk</p>
+          <h2>Az út idáig</h2>
+          <ol className="story-timeline">
+            {storyMilestones.map((milestone) => (
+              <li key={milestone.year}>
+                <span className="story-year">{milestone.year}</span>
+                <div>
+                  <h3>{milestone.title}</h3>
+                  <p>{milestone.text}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      <section id="important-info" className="editorial-section is-reversed">
+        <div className="editorial-media">
+          <img src={infoPhoto} alt="Lilla és Norbi ölelkezve a tónál" />
+        </div>
+        <div className="editorial-body">
+          <p className="eyebrow">Vendéginformációk</p>
+          <h2>Fontos információk</h2>
+          <div className="info-grid">
+            {infoCards.map((card) => (
+              <article className="info-card" key={card.title}>
+                <h3>{card.title}</h3>
+                <p>{card.text}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="schedule" className="content-section schedule-section">
+        <p className="eyebrow">A nap menete</p>
+        <h2>Menetrend</h2>
+        <p className="section-lead">
+          Így alakul majd a nagy nap. A végleges időpontokat a helyszínen és itt
+          is megerősítjük.
         </p>
+        <ol className="schedule-preview">
+          {schedulePreview.map((item) => (
+            <li key={item.time}>
+              <span className="schedule-time">{item.time}</span>
+              <div>
+                <h3>{item.title}</h3>
+                <p>{item.text}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
       </section>
 
-      <section className="photo-story-grid" aria-label="Dekoratív képek">
-        <figure>
-          <img src={homepageImages.dressCode.src} alt={homepageImages.dressCode.alt} />
-          <figcaption>Színpaletta és dress code inspiráció.</figcaption>
-        </figure>
-        <figure>
-          <img src={galleryImages[0].src} alt={galleryImages[0].alt} />
-          <figcaption>Finom textúrák a szekciók közé.</figcaption>
-        </figure>
-      </section>
-
-      <section id="dress-code" className="content-section">
+      <section id="dress-code" className="content-section dresscode-section">
         <p className="eyebrow">Hangulat</p>
         <h2>Dress code</h2>
-        <p>
-          Az esküvő témája enchanted forest: természetes zöldek, meleg barnák,
-          bézs árnyalatok és visszafogott arany részletek illenek majd a
-          hangulathoz.
+        <p className="section-lead">
+          Az esküvő témája enchanted forest. Kérünk, öltözzetek az erdő
+          színvilágához: természetes zöldek, meleg barnák, bézs árnyalatok és
+          finom arany részletek. A talpig fehéret a menyasszonynak tartogatjuk.
         </p>
-      </section>
-
-      <section className="content-section gallery-section">
-        <p className="eyebrow">Galéria</p>
-        <h2>Lapozható képes válogatás</h2>
-        <p>
-          Egyelőre dummy képekkel töltve. Később ide kerülhetnek a kedvenc közös
-          fotóitok, eljegyzési képek vagy hangulatképek.
-        </p>
-
-        <div className="gallery-track" aria-label="Lapozható képgaléria" tabIndex="0">
-          {galleryImages.map((image) => (
-            <figure className="gallery-card" key={image.title}>
-              <img src={image.src} alt={image.alt} />
-              <figcaption>{image.title}</figcaption>
+        <div className="swatch-grid">
+          {dressCodeSwatches.map((swatch) => (
+            <figure className="swatch" key={swatch.name}>
+              <span className="swatch-color" style={{ background: swatch.color }} />
+              <figcaption>{swatch.name}</figcaption>
             </figure>
           ))}
         </div>
       </section>
 
-      <section className="content-section image-plan-section">
-        <p className="eyebrow">Képtartalom javaslat</p>
-        <h2>Milyen képeket érdemes majd összegyűjteni?</h2>
-        <div className="image-plan-grid">
-          {imagePlan.map((item) => (
-            <article key={item.title}>
-              <span>{item.amount}</span>
-              <h3>{item.title}</h3>
-              <p>{item.description}</p>
-            </article>
+      <section id="gallery" className="content-section gallery-section">
+        <p className="eyebrow">Galéria</p>
+        <h2>Pillanatok</h2>
+        <p className="section-lead">
+          Néhány kedvenc közös képünk. Az esküvő után ide kerülnek majd a nap
+          legszebb fotói is.
+        </p>
+        <div className="gallery-track" aria-label="Lapozható képgaléria" tabIndex="0">
+          {galleryImages.map((image) => (
+            <figure className="gallery-card" key={image.alt}>
+              <img src={image.src} alt={image.alt} />
+            </figure>
           ))}
         </div>
       </section>
