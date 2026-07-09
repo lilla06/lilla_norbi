@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
 import HomePage from './pages/HomePage'
+import AdminBudgetPage from './pages/AdminBudgetPage'
 import AdminPage from './pages/AdminPage'
 import AdminRoomsPage from './pages/AdminRoomsPage'
 import AdminSchedulePage from './pages/AdminSchedulePage'
@@ -24,6 +25,7 @@ function App() {
         <Route path="/admin/rooms" element={<AdminRoomsPage />} />
         <Route path="/admin/schedule" element={<AdminSchedulePage />} />
         <Route path="/admin/seating" element={<AdminSeatingPage />} />
+        <Route path="/admin/budget" element={<AdminBudgetPage />} />
         <Route path="*" element={<HomePage />} />
       </Routes>
     </Layout>

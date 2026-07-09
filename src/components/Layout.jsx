@@ -131,6 +131,9 @@ export default function Layout({ children }) {
                 <button type="button" onClick={() => navigateFromMenu('/admin/seating')}>
                   Ülésrend
                 </button>
+                <button type="button" onClick={() => navigateFromMenu('/admin/budget')}>
+                  Költségvetés
+                </button>
               </div>
             </div>
           )}
