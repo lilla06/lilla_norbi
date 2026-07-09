@@ -72,6 +72,28 @@ function buildCategoryTree(categories) {
     }))
 }
 
+function getHierarchicalCategoryRows(categories) {
+  const tree = buildCategoryTree(categories)
+  const includedIds = new Set()
+
+  const rows = tree.flatMap((parent) => {
+    includedIds.add(parent.id)
+
+    const childRows = parent.children.map((child) => {
+      includedIds.add(child.id)
+      return { category: child, isSubcategory: true }
+    })
+
+    return [{ category: parent, isSubcategory: false }, ...childRows]
+  })
+
+  const orphanRows = categories
+    .filter((category) => !includedIds.has(category.id))
+    .map((category) => ({ category, isSubcategory: Boolean(category.parent_id) }))
+
+  return [...rows, ...orphanRows]
+}
+
 function getLeafCategories(categories) {
   const parentsWithChildren = new Set(
     categories.filter((category) => category.parent_id).map((category) => category.parent_id),
@@ -431,7 +453,7 @@ export default function AdminBudgetPage() {
     setTransactions(cloneTransactions(savedTransactions))
     setIsEditingTransactions(false)
     setStatusMessage('')
-    setViewMode('summary')
+    setViewMode('transactions')
   }
 
   async function saveTransactionChanges() {
@@ -591,7 +613,7 @@ export default function AdminBudgetPage() {
 
                 <div className="admin-actions">
                   <button type="button" onClick={() => setViewMode('categories')}>
-                    Kategóriák kezelése
+                    Kategóriák szerkesztése
                   </button>
                   <button type="button" onClick={() => setViewMode('transactions')}>
                     Tranzakciók szerkesztése
@@ -731,10 +753,10 @@ export default function AdminBudgetPage() {
                           <td colSpan={isEditingCategories ? 5 : 4}>Még nincs kategória.</td>
                         </tr>
                       ) : (
-                        categories.map((category) => (
+                        getHierarchicalCategoryRows(categories).map(({ category, isSubcategory }) => (
                           <tr
                             key={category.id}
-                            className={category.parent_id ? 'budget-subcategory-row' : ''}
+                            className={isSubcategory ? 'budget-subcategory-row' : ''}
                           >
                             <td>
                               {isEditingCategories ? (
@@ -846,10 +868,16 @@ export default function AdminBudgetPage() {
                   {!isEditingTransactions ? (
                     <>
                       <button type="button" onClick={startTransactionEditing}>
-                        Szerkesztés
+                        Tranzakciók szerkesztése
                       </button>
-                      <button type="button" onClick={() => setViewMode('summary')}>
-                        Vissza az összefoglalóhoz
+                      <button
+                        type="button"
+                        onClick={() => {
+                          startTransactionEditing()
+                          addTransaction()
+                        }}
+                      >
+                        Új tranzakció hozzáadása
                       </button>
                     </>
                   ) : (
@@ -869,7 +897,7 @@ export default function AdminBudgetPage() {
                         Módosítások elvetése
                       </button>
                       <button type="button" onClick={addTransaction}>
-                        Új tranzakció
+                        Új tranzakció hozzáadása
                       </button>
                     </>
                   )}
