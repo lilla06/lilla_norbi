@@ -208,6 +208,26 @@ export default function HomePage() {
   const [isVideoMuted, setIsVideoMuted] = useState(true)
   const heroVideoRef = useRef(null)
 
+  // A React nem mindig állítja be a `muted` attribútumot a DOM-on, ezért
+  // ref-en keresztül biztosítjuk, majd elindítjuk a lejátszást. Enélkül a
+  // mobil böngészők „nem némítottnak” látják a videót és blokkolják az autoplayt.
+  useEffect(() => {
+    const video = heroVideoRef.current
+
+    if (!video) {
+      return
+    }
+
+    video.muted = true
+    video.defaultMuted = true
+
+    const playResult = video.play()
+
+    if (playResult && typeof playResult.catch === 'function') {
+      playResult.catch(() => {})
+    }
+  }, [])
+
   function toggleVideoSound() {
     const video = heroVideoRef.current
 
@@ -299,35 +319,36 @@ export default function HomePage() {
                   </video>
                   <button
                     type="button"
-                    className="hero-sound-toggle"
+                    className={`hero-sound-toggle ${isVideoMuted ? 'is-muted' : ''}`}
                     onClick={toggleVideoSound}
                     aria-pressed={!isVideoMuted}
                     aria-label={isVideoMuted ? 'Hang bekapcsolása' : 'Hang némítása'}
                   >
-                    {isVideoMuted ? (
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" />
-                        <path
-                          d="M16 9l5 5m0-5l-5 5"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                    ) : (
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" />
-                        <path
-                          d="M16 8.5a4 4 0 010 7M18.5 6a7 7 0 010 12"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                    )}
-                    <span>{isVideoMuted ? 'Hang' : 'Némít'}</span>
+                    <span className="hero-sound-icon" aria-hidden="true">
+                      {isVideoMuted ? (
+                        <svg viewBox="0 0 24 24">
+                          <path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" />
+                          <path
+                            d="M16 9.5l5 5m0-5l-5 5"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                      ) : (
+                        <svg viewBox="0 0 24 24">
+                          <path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" />
+                          <path
+                            d="M16 8.5a4 4 0 010 7M18.5 6a7 7 0 010 12"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                      )}
+                    </span>
                   </button>
                 </>
               ) : (

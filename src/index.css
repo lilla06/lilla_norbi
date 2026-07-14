@@ -322,45 +322,91 @@ main {
   background: var(--forest-deep);
 }
 
-/* Hangkapcsoló gomb a videón */
+/* Hangkapcsoló gomb a videón - elegáns kör alakú aranygomb */
 .hero-sound-toggle {
   position: absolute;
-  right: 18px;
-  bottom: 18px;
+  right: 16px;
+  bottom: 16px;
   z-index: 2;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 9px 14px 9px 11px;
-  color: var(--cream-light);
-  font-family: var(--font-sans);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  padding: 0;
   cursor: pointer;
-  background: rgba(20, 37, 26, 0.62);
+  background: rgba(20, 37, 26, 0.42);
   border: 1px solid var(--gold-soft);
-  border-radius: 999px;
-  backdrop-filter: blur(8px);
-  transition: background 0.25s ease, transform 0.2s ease, border-color 0.25s ease;
+  border-radius: 50%;
+  backdrop-filter: blur(10px);
+  transition: background 0.3s ease, transform 0.2s ease, border-color 0.3s ease;
 }
 
 .hero-sound-toggle:hover {
-  background: rgba(20, 37, 26, 0.82);
+  background: rgba(20, 37, 26, 0.68);
   border-color: var(--gold);
-  transform: translateY(-1px);
+  transform: scale(1.06);
 }
 
-.hero-sound-toggle svg {
-  width: 18px;
-  height: 18px;
+.hero-sound-toggle:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+}
+
+.hero-sound-icon {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
   color: var(--gold-light);
 }
 
+.hero-sound-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Bekapcsolt hang: tömör arany kitöltés */
 .hero-sound-toggle[aria-pressed='true'] {
-  background: linear-gradient(135deg, var(--forest), var(--moss));
+  background: linear-gradient(135deg, var(--gold-light), var(--gold-deep));
   border-color: var(--gold);
+}
+
+.hero-sound-toggle[aria-pressed='true'] .hero-sound-icon {
+  color: var(--forest-deep);
+}
+
+/* Némított állapot: finom, lassan pulzáló arany gyűrű hívja fel a figyelmet */
+.hero-sound-toggle.is-muted::before,
+.hero-sound-toggle.is-muted::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border: 1px solid var(--gold);
+  border-radius: 50%;
+  opacity: 0;
+  animation: heroSoundPulse 2.8s ease-out infinite;
+}
+
+.hero-sound-toggle.is-muted::after {
+  animation-delay: 1.4s;
+}
+
+@keyframes heroSoundPulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(1.7);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-sound-toggle.is-muted::before,
+  .hero-sound-toggle.is-muted::after {
+    animation: none;
+  }
 }
 
 .hero-panel {
@@ -1099,7 +1145,7 @@ p {
 
 .gallery-card {
   overflow: hidden;
-  background: #fff8e7;
+  aspect-ratio: 4 / 5;
   border-radius: 4px;
   scroll-snap-align: start;
 }
@@ -1107,7 +1153,7 @@ p {
 .gallery-card img {
   display: block;
   width: 100%;
-  aspect-ratio: 4 / 5;
+  height: 100%;
   object-fit: cover;
 }
 
@@ -2722,10 +2768,10 @@ p {
   }
 }
 
-/* Telefon: a videó a felső részen teljes egészében látszik, a szöveg alatta */
+/* Telefon: a videó teljes szélességben, közvetlenül a fejléc alatt */
 @media (max-width: 860px) {
   .hero {
-    padding: 88px 0 0;
+    padding: 80px 0 0;
     min-height: 100svh;
   }
 
@@ -2734,22 +2780,20 @@ p {
     align-content: start;
     gap: 0;
     width: 100%;
-    min-height: calc(100svh - 88px);
+    min-height: calc(100svh - 80px);
   }
 
   .hero-media {
     position: relative;
     z-index: 0;
-    display: grid;
-    place-items: center;
+    display: block;
     width: 100%;
     max-width: none;
     height: auto;
   }
 
   .hero-frame {
-    display: grid;
-    place-items: center;
+    display: block;
     width: 100%;
     height: auto;
     padding: 0;
@@ -2759,16 +2803,15 @@ p {
     box-shadow: none;
   }
 
-  /* A teljes álló videó látszik, aránytartással, középen */
+  /* A teljes álló videó látszik, teljes szélességben (9/16 forrás, nincs vágás) */
   .hero-video {
-    width: auto;
-    max-width: 100%;
+    width: 100%;
+    max-width: none;
     height: auto;
-    max-height: 68svh;
     aspect-ratio: 9 / 16;
-    object-fit: contain;
+    object-fit: cover;
     border-radius: 0;
-    margin: 0 auto;
+    margin: 0;
   }
 
   .hero-panel {
@@ -2797,6 +2840,14 @@ p {
 @media (max-width: 680px) {
   .site-header {
     padding: 14px 18px;
+  }
+
+  .hero {
+    padding-top: 68px;
+  }
+
+  .hero-inner {
+    min-height: calc(100svh - 68px);
   }
 
   .header-actions {
