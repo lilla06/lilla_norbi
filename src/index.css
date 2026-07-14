@@ -3247,7 +3247,10 @@ p {
     padding: 14px;
   }
 
+  /* Telefonon a footer ne legyen fixen a képernyőn, csak a lap alján
+     jelenjen meg, amikor legörgetünk */
   .site-footer {
+    position: static;
     padding: 20px 14px;
     font-size: 12px;
   }
