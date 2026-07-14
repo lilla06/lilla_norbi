@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Monogram from '../components/Monogram'
+import { supabase } from '../lib/supabase'
 import heroPoster from '../assets/fcaa2d02-5523-4e23-b660-656f0c8e0eea.jpg'
 import infoPhoto from '../assets/d336ad11-89cc-48ea-b1f0-0b53cef877b8.jpg'
 import storyMet from '../assets/3474ed38-0961-44d5-89f0-27b60ba81180.jpg'
@@ -61,12 +62,14 @@ const storyMilestones = [
   },
 ]
 
-const schedulePreview = [
-  { time: '15:00', title: 'Vendégvárás', text: 'Érkezés, üdvözlő ital és fotózkodás a kertben.' },
-  { time: '16:00', title: 'Szertartás', text: 'A ceremónia a fák alatt, meghitt hangulatban.' },
-  { time: '18:00', title: 'Vacsora', text: 'Közös ünnepi vacsora és pohárköszöntők.' },
-  { time: '21:00', title: 'Buli', text: 'Zene, tánc és önfeledt mulatozás késő éjszakáig.' },
-]
+// Éjfél utáni időpontokat (06:00 előtt) a nap végére soroljuk, hogy a
+// menetrend valós idősorrendben jelenjen meg.
+function scheduleMinutes(time) {
+  const [hours, minutes] = (time || '').split(':').map(Number)
+  const total = (hours || 0) * 60 + (minutes || 0)
+
+  return total < 360 ? total + 1440 : total
+}
 
 const infoCards = [
   {
@@ -200,6 +203,37 @@ function useScrollReveal() {
 
 export default function HomePage() {
   useScrollReveal()
+  const [scheduleItems, setScheduleItems] = useState([])
+
+  useEffect(() => {
+    let isActive = true
+
+    async function loadPublicSchedule() {
+      const { data, error } = await supabase
+        .from('schedule_items')
+        .select('event_time, title, is_public')
+        .eq('is_public', true)
+
+      if (!isActive || error || !data) {
+        return
+      }
+
+      const items = data
+        .map((item) => ({
+          time: (item.event_time || '').slice(0, 5),
+          title: item.title,
+        }))
+        .sort((a, b) => scheduleMinutes(a.time) - scheduleMinutes(b.time))
+
+      setScheduleItems(items)
+    }
+
+    loadPublicSchedule()
+
+    return () => {
+      isActive = false
+    }
+  }, [])
 
   return (
     <main>
@@ -338,17 +372,22 @@ export default function HomePage() {
             is megerősítjük.
           </p>
         </div>
-        <ol className="schedule-preview">
-          {schedulePreview.map((item) => (
-            <li key={item.time}>
-              <span className="schedule-time">{item.time}</span>
-              <div>
-                <h3>{item.title}</h3>
-                <p>{item.text}</p>
-              </div>
-            </li>
-          ))}
-        </ol>
+        {scheduleItems.length === 0 ? (
+          <p className="section-lead">
+            A részletes menetrendet hamarosan itt találjátok.
+          </p>
+        ) : (
+          <ol className="schedule-preview">
+            {scheduleItems.map((item) => (
+              <li key={`${item.time}-${item.title}`}>
+                <span className="schedule-time">{item.time}</span>
+                <div>
+                  <h3>{item.title}</h3>
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
       </section>
 
       <section id="dress-code" className="content-section dresscode-section reveal">

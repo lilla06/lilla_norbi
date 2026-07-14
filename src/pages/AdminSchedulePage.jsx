@@ -18,6 +18,7 @@ function createScheduleItem() {
     event_time: '12:00',
     end_time: '12:15',
     title: '',
+    is_public: true,
   }
 }
 
@@ -25,8 +26,19 @@ function formatTime(time) {
   return time?.slice(0, 5) || ''
 }
 
+// Éjfél utáni időpontokat (06:00 előtt) a nap végére soroljuk, hogy a
+// menetrend valós idősorrendben jelenjen meg.
+function scheduleMinutes(time) {
+  const [hours, minutes] = (time || '').split(':').map(Number)
+  const total = (hours || 0) * 60 + (minutes || 0)
+
+  return total < 360 ? total + 1440 : total
+}
+
 function sortScheduleItems(items) {
-  return [...items].sort((a, b) => a.event_time.localeCompare(b.event_time))
+  return [...items].sort(
+    (a, b) => scheduleMinutes(a.event_time) - scheduleMinutes(b.event_time),
+  )
 }
 
 function cloneScheduleItems(items) {
@@ -63,7 +75,7 @@ export default function AdminSchedulePage() {
 
       const { data, error } = await supabase
         .from('schedule_items')
-        .select('event_time, end_time, title')
+        .select('event_time, end_time, title, is_public')
         .order('event_time')
 
       if (error) {
@@ -74,6 +86,7 @@ export default function AdminSchedulePage() {
             event_time: formatTime(item.event_time),
             end_time: formatTime(item.end_time),
             title: item.title,
+            is_public: item.is_public ?? false,
           })),
         )
         setScheduleItems(loadedItems)
@@ -124,6 +137,7 @@ export default function AdminSchedulePage() {
         event_time: item.event_time,
         end_time: item.end_time,
         title: item.title.trim(),
+        is_public: item.is_public,
       }))
       .filter((item) => item.title)
 
@@ -193,18 +207,20 @@ export default function AdminSchedulePage() {
                       <tr>
                         <th>Időpont</th>
                         <th>Esemény</th>
+                        <th>Publikus</th>
                       </tr>
                     </thead>
                     <tbody>
                       {scheduleItems.length === 0 ? (
                         <tr>
-                          <td colSpan="2">Még nincs menetrend megadva.</td>
+                          <td colSpan="3">Még nincs menetrend megadva.</td>
                         </tr>
                       ) : (
                         scheduleItems.map((item) => (
                           <tr key={`${item.event_time}-${item.end_time}-${item.title}`}>
                             <td>{item.event_time} - {item.end_time}</td>
                             <td>{item.title}</td>
+                            <td>{item.is_public ? 'Igen' : 'Nem'}</td>
                           </tr>
                         ))
                       )}
@@ -214,58 +230,80 @@ export default function AdminSchedulePage() {
               </>
             ) : (
               <div className="auth-form schedule-form">
-                <div className="schedule-list">
-                  {scheduleItems.map((item, index) => (
-                    <div className="schedule-row" key={`schedule-item-${index + 1}`}>
-                      <label>
-                        Kezdés
-                        <select
-                          value={item.event_time}
-                          onChange={(event) =>
-                            updateScheduleItem(index, 'event_time', event.target.value)
-                          }
-                        >
-                          {timeOptions.map((time) => (
-                            <option key={time} value={time}>
-                              {time}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-
-                      <label>
-                        Vége
-                        <select
-                          value={item.end_time}
-                          onChange={(event) =>
-                            updateScheduleItem(index, 'end_time', event.target.value)
-                          }
-                        >
-                          {timeOptions.map((time) => (
-                            <option key={time} value={time}>
-                              {time}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-
-                      <label>
-                        Esemény
-                        <input
-                          type="text"
-                          value={item.title}
-                          onChange={(event) =>
-                            updateScheduleItem(index, 'title', event.target.value)
-                          }
-                          placeholder="Például: Szertartás"
-                        />
-                      </label>
-
-                      <button type="button" onClick={() => removeScheduleItem(index)}>
-                        Törlés
-                      </button>
-                    </div>
-                  ))}
+                <div className="admin-table-wrapper">
+                  <table className="admin-table schedule-edit-table">
+                    <thead>
+                      <tr>
+                        <th>Kezdés</th>
+                        <th>Vége</th>
+                        <th>Esemény</th>
+                        <th>Publikus</th>
+                        <th aria-label="Műveletek" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {scheduleItems.map((item, index) => (
+                        <tr key={`schedule-item-${index + 1}`}>
+                          <td>
+                            <select
+                              aria-label="Kezdés"
+                              value={item.event_time}
+                              onChange={(event) =>
+                                updateScheduleItem(index, 'event_time', event.target.value)
+                              }
+                            >
+                              {timeOptions.map((time) => (
+                                <option key={time} value={time}>
+                                  {time}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td>
+                            <select
+                              aria-label="Vége"
+                              value={item.end_time}
+                              onChange={(event) =>
+                                updateScheduleItem(index, 'end_time', event.target.value)
+                              }
+                            >
+                              {timeOptions.map((time) => (
+                                <option key={time} value={time}>
+                                  {time}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td>
+                            <input
+                              aria-label="Esemény"
+                              type="text"
+                              value={item.title}
+                              onChange={(event) =>
+                                updateScheduleItem(index, 'title', event.target.value)
+                              }
+                              placeholder="Például: Szertartás"
+                            />
+                          </td>
+                          <td className="schedule-public-cell">
+                            <input
+                              aria-label="Publikus"
+                              type="checkbox"
+                              checked={item.is_public}
+                              onChange={(event) =>
+                                updateScheduleItem(index, 'is_public', event.target.checked)
+                              }
+                            />
+                          </td>
+                          <td>
+                            <button type="button" onClick={() => removeScheduleItem(index)}>
+                              Törlés
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
 
                 <div className="admin-actions">
