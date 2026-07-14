@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import Monogram from '../components/Monogram'
 import { supabase } from '../lib/supabase'
 
 export default function AuthPage() {
@@ -66,6 +67,7 @@ export default function AuthPage() {
   return (
     <main className="auth-page">
       <section className="auth-card">
+        <Monogram />
         <p className="eyebrow">Vendégkapu</p>
         <h1>Bejelentkezés</h1>
         <p className="auth-intro">

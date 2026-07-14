@@ -1,7 +1,12 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import heroPhoto from '../assets/fcaa2d02-5523-4e23-b660-656f0c8e0eea.jpg'
-import storyPhoto from '../assets/f15f1334-c156-4182-9500-87acae77f6e2.jpg'
+import Monogram from '../components/Monogram'
+import heroPoster from '../assets/fcaa2d02-5523-4e23-b660-656f0c8e0eea.jpg'
 import infoPhoto from '../assets/d336ad11-89cc-48ea-b1f0-0b53cef877b8.jpg'
+import storyMet from '../assets/3474ed38-0961-44d5-89f0-27b60ba81180.jpg'
+import storyTravel from '../assets/dec6824b-8d3d-4294-966c-b8c0e519e7c5.jpg'
+import storyProposal from '../assets/59be6e4a-8845-44a3-9c36-749da124c984.jpg'
+import storyBigDay from '../assets/a365840d-f406-4cee-bbd8-b20b75672936.jpg'
 import galleryBacklit from '../assets/f8465e2b-cc8c-4ece-ba30-7f6d97183f94.jpg'
 import galleryPortrait from '../assets/019f4b71-54ab-4770-b9ec-eb99c7b02036.jpg'
 import galleryCheekKiss from '../assets/d982c42b-696c-494e-8b03-02186cdeb177.jpg'
@@ -10,6 +15,13 @@ import galleryRing from '../assets/c7e247fc-cbb7-40a4-b78c-c583eb73b609.jpg'
 import galleryHands from '../assets/61da3cf8-c618-49c7-bcf5-f21c77e268ec.jpg'
 import galleryHighFive from '../assets/2c30ff7d-604d-40cb-ad01-e8141e1c4f31.jpg'
 import gallerySitting from '../assets/2bd4f1fd-b6e8-4b93-b8f9-fb9f1c688ccb.jpg'
+
+// TODO: Ide kerül a Supabase Storage-ra feltöltött álló (Instagram) save-the-date
+// videó nyilvános URL-je, pl. 'https://XXXX.supabase.co/storage/v1/object/public/wedding-media/save-the-date.mp4'
+// Amíg üres, a hero a poszter fotót mutatja.
+const heroVideoSrc = ''
+
+const WEDDING_DATE = new Date(2027, 5, 5, 14, 30, 0)
 
 const quickActions = [
   { label: 'Visszajelzés', description: 'RSVP a nagy napra', to: '/rsvp', type: 'route' },
@@ -23,21 +35,29 @@ const storyMilestones = [
     year: '2019',
     title: 'Ahol minden kezdődött',
     text: 'Egy baráti társaságban ismerkedtünk meg, és már az első beszélgetés is órákig tartott.',
+    image: storyMet,
+    imageAlt: 'Lilla és Norbi egymást átölelve',
   },
   {
     year: '2021',
     title: 'Az első közös utazás',
     text: 'Egy erdei kiránduláson jöttünk rá, hogy a csendben is jó együtt lenni.',
+    image: storyTravel,
+    imageAlt: 'Lilla és Norbi egymás szemébe nézve',
   },
   {
     year: '2025',
     title: 'Az igen',
     text: 'Egy naplementés séta végén, a fák között tettük fel életünk legszebb kérdését.',
+    image: storyProposal,
+    imageAlt: 'Norbi megcsókolja Lilla kezét, látszik az eljegyzési gyűrű',
   },
   {
     year: '2027',
     title: 'A nagy nap',
     text: 'Most pedig szeretnénk, ha ti is velünk lennétek, amikor kimondjuk a boldogító igent.',
+    image: storyBigDay,
+    imageAlt: 'Lilla és Norbi táncolva a tóparton',
   },
 ]
 
@@ -65,6 +85,10 @@ const infoCards = [
     title: 'Szállás',
     text: 'A távolabbról érkezőknek szállást szervezünk a közelben. A részleteket a visszajelzés után egyeztetjük.',
   },
+  {
+    title: 'Nászajándék',
+    text: 'A legnagyobb ajándék számunkra, hogy velünk ünnepeltek. Ha mégis meglepnétek minket, jókívánságaitokat egy borítékban hálásan fogadjuk.',
+  },
 ]
 
 const dressCodeSwatches = [
@@ -86,40 +110,150 @@ const galleryImages = [
   { src: gallerySitting, alt: 'Lilla és Norbi egy fa alatt ülve' },
 ]
 
+function pad(value) {
+  return String(value).padStart(2, '0')
+}
+
+function getTimeLeft(target) {
+  const diff = target.getTime() - Date.now()
+
+  if (diff <= 0) {
+    return { days: 0, hours: 0, minutes: 0, seconds: 0, isPast: true }
+  }
+
+  return {
+    days: Math.floor(diff / 86400000),
+    hours: Math.floor((diff % 86400000) / 3600000),
+    minutes: Math.floor((diff % 3600000) / 60000),
+    seconds: Math.floor((diff % 60000) / 1000),
+    isPast: false,
+  }
+}
+
+function Countdown() {
+  const [timeLeft, setTimeLeft] = useState(() => getTimeLeft(WEDDING_DATE))
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setTimeLeft(getTimeLeft(WEDDING_DATE))
+    }, 1000)
+
+    return () => clearInterval(intervalId)
+  }, [])
+
+  if (timeLeft.isPast) {
+    return <p className="countdown-past">Végre elérkezett a nagy nap!</p>
+  }
+
+  const items = [
+    { value: timeLeft.days, label: 'Nap' },
+    { value: pad(timeLeft.hours), label: 'Óra' },
+    { value: pad(timeLeft.minutes), label: 'Perc' },
+    { value: pad(timeLeft.seconds), label: 'Másodperc' },
+  ]
+
+  return (
+    <div className="countdown" aria-label="Visszaszámlálás az esküvőig">
+      {items.map((item) => (
+        <div className="countdown-item" key={item.label}>
+          <span className="countdown-value">{item.value}</span>
+          <span className="countdown-label">{item.label}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function useScrollReveal() {
+  useEffect(() => {
+    const elements = Array.from(document.querySelectorAll('.reveal'))
+
+    if (elements.length === 0) {
+      return undefined
+    }
+
+    if (
+      !('IntersectionObserver' in window) ||
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ) {
+      elements.forEach((element) => element.classList.add('is-visible'))
+      return undefined
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-visible')
+            observer.unobserve(entry.target)
+          }
+        })
+      },
+      { threshold: 0.12, rootMargin: '0px 0px -8% 0px' },
+    )
+
+    elements.forEach((element) => observer.observe(element))
+
+    return () => observer.disconnect()
+  }, [])
+}
+
 export default function HomePage() {
+  useScrollReveal()
+
   return (
     <main>
       <section id="hero" className="hero">
-        <div
-          className="hero-bg"
-          style={{ backgroundImage: `url(${heroPhoto})` }}
-          aria-hidden="true"
-        />
-        <div className="hero-overlay" aria-hidden="true" />
+        <div className="hero-inner">
+          <div className="hero-media">
+            <div className="hero-frame">
+              {heroVideoSrc ? (
+                <video
+                  className="hero-video"
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  poster={heroPoster}
+                >
+                  <source src={heroVideoSrc} type="video/mp4" />
+                </video>
+              ) : (
+                <img className="hero-video" src={heroPoster} alt="Lilla és Norbi" />
+              )}
+            </div>
+          </div>
 
-        <div className="hero-content hero-content-centered">
-          <p className="eyebrow">Enchanted forest wedding</p>
-          <h1>Lilla &amp; Norbi</h1>
-          <p className="wedding-date">2027. június 5.</p>
-          <p className="hero-lead">
-            Két ember, egy erdő és egy ígéret. Szeretettel hívunk, hogy velünk
-            ünnepeld életünk legszebb napját.
-          </p>
-          <div className="hero-cta">
-            <Link className="btn-primary" to="/rsvp">
-              Visszajelzés
-            </Link>
-            <a className="btn-ghost" href="#invitation">
-              Tovább
-            </a>
+          <div className="hero-panel">
+            <Monogram />
+            <p className="eyebrow">Összeházasodunk</p>
+            <h1>Lilla &amp; Norbi</h1>
+            <p className="wedding-date">2027. június 5.</p>
+            <Countdown />
+            <p className="hero-lead">
+              Két ember, egy erdő és egy ígéret. Szeretettel hívunk, hogy velünk
+              ünnepeld életünk legszebb napját.
+            </p>
+            <div className="hero-cta">
+              <Link className="btn-primary" to="/rsvp">
+                Visszajelzés
+              </Link>
+              <a className="btn-ghost" href="#invitation">
+                Tovább
+              </a>
+            </div>
           </div>
         </div>
       </section>
 
-      <section id="invitation" className="invitation-section">
+      <section id="invitation" className="invitation-section reveal">
         <div className="invitation-card">
+          <Monogram />
           <p className="eyebrow">Meghívó</p>
           <h2>Kedves Vendégeink!</h2>
+          <div className="gold-divider">
+            <span>&#10022;</span>
+          </div>
           <p>
             Nagy örömmel osztjuk meg veletek, hogy összekötjük az életünket. Egy
             meghitt, erdei hangulatú napra készülünk, ahol a legfontosabb emberek
@@ -134,7 +268,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section id="quick-actions" className="quick-actions" aria-label="Gyors elérés">
+      <section id="quick-actions" className="quick-actions reveal" aria-label="Gyors elérés">
         {quickActions.map((action) =>
           action.type === 'route' ? (
             <Link className="quick-action" to={action.to} key={action.label}>
@@ -150,30 +284,33 @@ export default function HomePage() {
         )}
       </section>
 
-      <section id="story" className="editorial-section">
-        <div className="editorial-media">
-          <img src={storyPhoto} alt="Lilla és Norbi a fűzfa alatt a tóparton" />
-        </div>
-        <div className="editorial-body">
+      <section id="story" className="content-section story-section reveal">
+        <div className="section-head">
           <p className="eyebrow">A történetünk</p>
           <h2>Az út idáig</h2>
-          <ol className="story-timeline">
-            {storyMilestones.map((milestone) => (
-              <li key={milestone.year}>
-                <span className="story-year">{milestone.year}</span>
-                <div>
-                  <h3>{milestone.title}</h3>
-                  <p>{milestone.text}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
+          <div className="gold-divider">
+            <span>&#10022;</span>
+          </div>
         </div>
+        <ol className="story-list">
+          {storyMilestones.map((milestone) => (
+            <li className="story-item reveal" key={milestone.year}>
+              <div className="story-photo">
+                <img src={milestone.image} alt={milestone.imageAlt} loading="lazy" />
+              </div>
+              <div className="story-copy">
+                <span className="story-year">{milestone.year}</span>
+                <h3>{milestone.title}</h3>
+                <p>{milestone.text}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
       </section>
 
-      <section id="important-info" className="editorial-section is-reversed">
+      <section id="important-info" className="editorial-section is-reversed reveal">
         <div className="editorial-media">
-          <img src={infoPhoto} alt="Lilla és Norbi ölelkezve a tónál" />
+          <img src={infoPhoto} alt="Lilla és Norbi ölelkezve a tónál" loading="lazy" />
         </div>
         <div className="editorial-body">
           <p className="eyebrow">Vendéginformációk</p>
@@ -189,13 +326,18 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section id="schedule" className="content-section schedule-section">
-        <p className="eyebrow">A nap menete</p>
-        <h2>Menetrend</h2>
-        <p className="section-lead">
-          Így alakul majd a nagy nap. A végleges időpontokat a helyszínen és itt
-          is megerősítjük.
-        </p>
+      <section id="schedule" className="content-section schedule-section reveal">
+        <div className="section-head">
+          <p className="eyebrow">A nap menete</p>
+          <h2>Menetrend</h2>
+          <div className="gold-divider">
+            <span>&#10022;</span>
+          </div>
+          <p className="section-lead">
+            Így alakul majd a nagy nap. A végleges időpontokat a helyszínen és itt
+            is megerősítjük.
+          </p>
+        </div>
         <ol className="schedule-preview">
           {schedulePreview.map((item) => (
             <li key={item.time}>
@@ -209,14 +351,19 @@ export default function HomePage() {
         </ol>
       </section>
 
-      <section id="dress-code" className="content-section dresscode-section">
-        <p className="eyebrow">Hangulat</p>
-        <h2>Dress code</h2>
-        <p className="section-lead">
-          Az esküvő témája enchanted forest. Kérünk, öltözzetek az erdő
-          színvilágához: természetes zöldek, meleg barnák, bézs árnyalatok és
-          finom arany részletek. A talpig fehéret a menyasszonynak tartogatjuk.
-        </p>
+      <section id="dress-code" className="content-section dresscode-section reveal">
+        <div className="section-head">
+          <p className="eyebrow">Hangulat</p>
+          <h2>Dress code</h2>
+          <div className="gold-divider">
+            <span>&#10022;</span>
+          </div>
+          <p className="section-lead">
+            Az esküvő témája enchanted forest. Kérünk, öltözzetek az erdő
+            színvilágához: természetes zöldek, meleg barnák, bézs árnyalatok és
+            finom arany részletek. A talpig fehéret a menyasszonynak tartogatjuk.
+          </p>
+        </div>
         <div className="swatch-grid">
           {dressCodeSwatches.map((swatch) => (
             <figure className="swatch" key={swatch.name}>
@@ -227,17 +374,22 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section id="gallery" className="content-section gallery-section">
-        <p className="eyebrow">Galéria</p>
-        <h2>Pillanatok</h2>
-        <p className="section-lead">
-          Néhány kedvenc közös képünk. Az esküvő után ide kerülnek majd a nap
-          legszebb fotói is.
-        </p>
+      <section id="gallery" className="content-section gallery-section reveal">
+        <div className="section-head">
+          <p className="eyebrow">Galéria</p>
+          <h2>Pillanatok</h2>
+          <div className="gold-divider">
+            <span>&#10022;</span>
+          </div>
+          <p className="section-lead">
+            Néhány kedvenc közös képünk. Az esküvő után ide kerülnek majd a nap
+            legszebb fotói is.
+          </p>
+        </div>
         <div className="gallery-track" aria-label="Lapozható képgaléria" tabIndex="0">
           {galleryImages.map((image) => (
             <figure className="gallery-card" key={image.alt}>
-              <img src={image.src} alt={image.alt} />
+              <img src={image.src} alt={image.alt} loading="lazy" />
             </figure>
           ))}
         </div>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import Monogram from '../components/Monogram'
 import { supabase } from '../lib/supabase'
 
 function getUserName(user) {
@@ -109,6 +110,7 @@ export default function ProfilePage() {
     return (
       <main className="auth-page">
         <section className="auth-card">
+          <Monogram />
           <p className="eyebrow">Profil</p>
           <h1>Betöltés...</h1>
         </section>
@@ -119,6 +121,7 @@ export default function ProfilePage() {
   return (
     <main className="auth-page">
       <section className="auth-card">
+        <Monogram />
         <p className="eyebrow">Profil</p>
         <h1>{isPasswordRecovery ? 'Új jelszó megadása' : 'Saját profil'}</h1>
         {isPasswordRecovery ? (

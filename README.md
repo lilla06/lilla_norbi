@@ -13,12 +13,17 @@ A fejlesztői szerver: `http://localhost:5173/lilla_norbi/`
 
 ## TODO
 
+### Videó (hero)
+
+- [ ] **Hero save-the-date videó** (`HomePage.jsx` → `heroVideoSrc`) — az álló (Instagram) videót töltsd fel Supabase Storage-ba (public `wedding-media` bucket), és illeszd be a publikus URL-t a `heroVideoSrc` konstansba. Amíg üres, a hero a poszter fotót (`heroPoster`) mutatja.
+
 ### Képek
 
 A jegyesfotók már be vannak építve, de néhány helyen ideiglenes kép áll, vagy még hiányzik a végleges tartalom.
 
+- [ ] **Történet állomások képei** (`HomePage.jsx` → `storyMilestones` `image` mezői) — jelenleg **ideiglenes jegyesfotók** (`storyMet`, `storyTravel`, `storyProposal`, `storyBigDay`); cseréld le a mérföldkövekhez illő valódi fotókra
 - [ ] **Fontos információk szekció** (`HomePage.jsx` → `infoPhoto`) — jelenleg jegyesfotó van; ide **helyszín-/birtokfotó** kell (épület, kert, ceremónia helye, térképhez illő kép)
-- [ ] **Hero háttér** (`HomePage.jsx` → `heroPhoto`) — opcionálisan cserélhető **vízszintes tájképre** desktopra (most függőleges jegyesfotó)
+- [ ] **Hero poszter** (`HomePage.jsx` → `heroPoster`) — a videó betöltéséig / hiányában látszó kép; opcionálisan cserélhető
 - [ ] **Bejelentkezés / regisztráció / RSVP / profil háttér** (`index.css` → `fc0f1266.jpg`) — jegyesfotó háttérként; opcionálisan dedikált, kevésbé személyes hangulatkép
 - [ ] **Részletfotók** (még nincs helyük az oldalon) — gyűrűk közeli, virág/csokor, dekor, meghívó, terítés; későbbi editorial szekciókhoz vagy galériához
 - [ ] **Esküvő napi fotók** — az esküvő után a galériába (`HomePage.jsx` → `galleryImages`)
@@ -28,7 +33,7 @@ A jegyesfotók már be vannak építve, de néhány helyen ideiglenes kép áll,
 Mind a `src/pages/HomePage.jsx` fájlban.
 
 **Hero**
-- [ ] Eyebrow: „Enchanted forest wedding”
+- [ ] Eyebrow: „Összeházasodunk”
 - [ ] Bevezető: „Két ember, egy erdő és egy ígéret. Szeretettel hívunk, hogy velünk ünnepeld életünk legszebb napját.”
 
 **Meghívó**
@@ -48,6 +53,7 @@ Mind a `src/pages/HomePage.jsx` fájlban.
 - [ ] Helyszín szöveg — „erdő szélén álló birtok”, „pontos cím és térkép hamarosan”
 - [ ] Parkolás szöveg
 - [ ] Szállás szöveg
+- [ ] Nászajándék szöveg (jókívánságok borítékban)
 
 **Menetrend** (`schedulePreview` + bevezető)
 - [ ] Bevezető: „Így alakul majd a nagy nap…”

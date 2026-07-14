@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import Monogram from '../components/Monogram'
 import { supabase } from '../lib/supabase'
 
 const allergyOptions = ['gluténérzékeny', 'laktózérzékeny', 'egyéb']
@@ -199,6 +200,7 @@ export default function RsvpPage() {
     return (
       <main className="auth-page">
         <section className="auth-card">
+          <Monogram />
           <p className="eyebrow">RSVP</p>
           <h1>Betöltés...</h1>
         </section>
@@ -209,6 +211,7 @@ export default function RsvpPage() {
   return (
     <main className="auth-page rsvp-page">
       <section className="auth-card rsvp-card">
+        <Monogram />
         <p className="eyebrow">Visszajelzés</p>
         <h1>RSVP</h1>
 

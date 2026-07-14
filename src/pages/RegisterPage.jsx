@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import Monogram from '../components/Monogram'
 import { supabase } from '../lib/supabase'
 
 export default function RegisterPage() {
@@ -63,6 +64,7 @@ export default function RegisterPage() {
   return (
     <main className="auth-page">
       <section className="auth-card">
+        <Monogram />
         <p className="eyebrow">Vendégkapu</p>
         <h1>Regisztráció</h1>
         <p className="auth-intro">
