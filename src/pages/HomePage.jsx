@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Monogram from '../components/Monogram'
 import { supabase } from '../lib/supabase'
@@ -205,6 +205,31 @@ export default function HomePage() {
   useScrollReveal()
   const [scheduleItems, setScheduleItems] = useState([])
   const [isSchedulePublished, setIsSchedulePublished] = useState(false)
+  const [isVideoMuted, setIsVideoMuted] = useState(true)
+  const heroVideoRef = useRef(null)
+
+  function toggleVideoSound() {
+    const video = heroVideoRef.current
+
+    if (!video) {
+      return
+    }
+
+    const nextMuted = !video.muted
+
+    video.muted = nextMuted
+    setIsVideoMuted(nextMuted)
+
+    // Némítás feloldásakor a böngésző megkövetelheti az újraindítást,
+    // ezért biztosítjuk, hogy fut a lejátszás.
+    if (!nextMuted) {
+      const playResult = video.play()
+
+      if (playResult && typeof playResult.catch === 'function') {
+        playResult.catch(() => {})
+      }
+    }
+  }
 
   useEffect(() => {
     let isActive = true
@@ -260,16 +285,51 @@ export default function HomePage() {
           <div className="hero-media">
             <div className="hero-frame">
               {heroVideoSrc ? (
-                <video
-                  className="hero-video"
-                  autoPlay
-                  muted
-                  loop
-                  playsInline
-                  poster={heroPoster}
-                >
-                  <source src={heroVideoSrc} type="video/mp4" />
-                </video>
+                <>
+                  <video
+                    ref={heroVideoRef}
+                    className="hero-video"
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                    poster={heroPoster}
+                  >
+                    <source src={heroVideoSrc} type="video/mp4" />
+                  </video>
+                  <button
+                    type="button"
+                    className="hero-sound-toggle"
+                    onClick={toggleVideoSound}
+                    aria-pressed={!isVideoMuted}
+                    aria-label={isVideoMuted ? 'Hang bekapcsolása' : 'Hang némítása'}
+                  >
+                    {isVideoMuted ? (
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" />
+                        <path
+                          d="M16 9l5 5m0-5l-5 5"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    ) : (
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" />
+                        <path
+                          d="M16 8.5a4 4 0 010 7M18.5 6a7 7 0 010 12"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    )}
+                    <span>{isVideoMuted ? 'Hang' : 'Némít'}</span>
+                  </button>
+                </>
               ) : (
                 <img className="hero-video" src={heroPoster} alt="Lilla és Norbi" />
               )}
