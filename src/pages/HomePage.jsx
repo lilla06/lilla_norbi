@@ -20,7 +20,7 @@ import gallerySitting from '../assets/2bd4f1fd-b6e8-4b93-b8f9-fb9f1c688ccb.jpg'
 // A Supabase Storage-ra feltöltött álló (Instagram) save-the-date videó
 // nyilvános URL-je. Amíg üres, a hero a poszter fotót mutatja.
 const heroVideoSrc =
-  'https://aqlhjwejodudvfuhmcmi.supabase.co/storage/v1/object/public/wedding_media/save%20the%20date_compressed.mp4'
+  'https://aqlhjwejodudvfuhmcmi.supabase.co/storage/v1/object/public/wedding_media/save%20the%20date3_compressed2.mp4'
 
 const WEDDING_DATE = new Date(2027, 5, 5, 14, 30, 0)
 
