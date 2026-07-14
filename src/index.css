@@ -441,6 +441,51 @@ main {
   }
 }
 
+/* Lejátszás gomb: csak akkor jelenik meg, ha a videó valamiért megállt.
+   Középre kerül, elegáns arany kör alakú gomb. */
+.hero-play-button {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  padding: 0;
+  cursor: pointer;
+  color: var(--forest-deep);
+  background: linear-gradient(135deg, var(--gold-light), var(--gold-deep));
+  border: 1px solid var(--gold);
+  border-radius: 50%;
+  box-shadow: 0 12px 30px rgba(10, 22, 12, 0.45);
+  transform: translate(-50%, -50%);
+  transition: transform 0.2s ease, box-shadow 0.3s ease;
+}
+
+.hero-play-button:hover {
+  transform: translate(-50%, -50%) scale(1.06);
+  box-shadow: 0 16px 38px rgba(10, 22, 12, 0.55);
+}
+
+.hero-play-button:focus-visible {
+  outline: 2px solid var(--gold-light);
+  outline-offset: 4px;
+}
+
+.hero-play-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin-left: 3px;
+}
+
+.hero-play-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
 .hero-panel {
   position: relative;
   z-index: 2;

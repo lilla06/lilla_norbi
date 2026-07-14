@@ -206,11 +206,28 @@ export default function HomePage() {
   const [scheduleItems, setScheduleItems] = useState([])
   const [isSchedulePublished, setIsSchedulePublished] = useState(false)
   const [isVideoMuted, setIsVideoMuted] = useState(true)
+  const [isVideoPaused, setIsVideoPaused] = useState(false)
   const heroVideoRef = useRef(null)
+
+  function playVideo() {
+    const video = heroVideoRef.current
+
+    if (!video) {
+      return
+    }
+
+    const playResult = video.play()
+
+    if (playResult && typeof playResult.catch === 'function') {
+      playResult.catch(() => {})
+    }
+  }
 
   // A React nem mindig állítja be a `muted` attribútumot a DOM-on, ezért
   // ref-en keresztül biztosítjuk, majd elindítjuk a lejátszást. Enélkül a
   // mobil böngészők „nem némítottnak” látják a videót és blokkolják az autoplayt.
+  // Emellett figyeljük a lejátszás állapotát, és ha megáll, megjelenítjük a
+  // lejátszás gombot; láthatóvá váláskor pedig megpróbáljuk újraindítani.
   useEffect(() => {
     const video = heroVideoRef.current
 
@@ -221,10 +238,46 @@ export default function HomePage() {
     video.muted = true
     video.defaultMuted = true
 
-    const playResult = video.play()
+    function tryPlay() {
+      const playResult = video.play()
 
-    if (playResult && typeof playResult.catch === 'function') {
-      playResult.catch(() => {})
+      if (playResult && typeof playResult.catch === 'function') {
+        playResult.catch(() => {})
+      }
+    }
+
+    function handlePlaying() {
+      setIsVideoPaused(false)
+    }
+
+    function handlePause() {
+      setIsVideoPaused(true)
+    }
+
+    function handleEnded() {
+      tryPlay()
+    }
+
+    function handleVisibility() {
+      if (document.visibilityState === 'visible' && video.paused) {
+        tryPlay()
+      }
+    }
+
+    video.addEventListener('play', handlePlaying)
+    video.addEventListener('playing', handlePlaying)
+    video.addEventListener('pause', handlePause)
+    video.addEventListener('ended', handleEnded)
+    document.addEventListener('visibilitychange', handleVisibility)
+
+    tryPlay()
+
+    return () => {
+      video.removeEventListener('play', handlePlaying)
+      video.removeEventListener('playing', handlePlaying)
+      video.removeEventListener('pause', handlePause)
+      video.removeEventListener('ended', handleEnded)
+      document.removeEventListener('visibilitychange', handleVisibility)
     }
   }, [])
 
@@ -355,6 +408,20 @@ export default function HomePage() {
                       )}
                     </span>
                   </button>
+                  {isVideoPaused && (
+                    <button
+                      type="button"
+                      className="hero-play-button"
+                      onClick={playVideo}
+                      aria-label="Videó lejátszása"
+                    >
+                      <span className="hero-play-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24">
+                          <path d="M8 5.2v13.6L19 12z" fill="currentColor" />
+                        </svg>
+                      </span>
+                    </button>
+                  )}
                 </>
               ) : (
                 <img className="hero-video" src={heroPoster} alt="Lilla és Norbi" />
