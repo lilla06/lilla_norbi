@@ -54,6 +54,8 @@ export default function AdminSchedulePage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [hasAccess, setHasAccess] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
+  const [isPublished, setIsPublished] = useState(false)
+  const [isPublishSaving, setIsPublishSaving] = useState(false)
 
   useEffect(() => {
     async function loadSchedule() {
@@ -93,11 +95,46 @@ export default function AdminSchedulePage() {
         setSavedScheduleItems(cloneScheduleItems(loadedItems))
       }
 
+      const { data: settingsData } = await supabase
+        .from('site_settings')
+        .select('schedule_published')
+        .eq('id', 1)
+        .maybeSingle()
+
+      setIsPublished(settingsData?.schedule_published ?? false)
+
       setIsLoading(false)
     }
 
     loadSchedule()
   }, [navigate])
+
+  async function togglePublish() {
+    const nextValue = !isPublished
+
+    setIsPublishSaving(true)
+    setStatusMessage('')
+    setIsPublished(nextValue)
+
+    const { error } = await supabase
+      .from('site_settings')
+      .update({ schedule_published: nextValue, updated_at: new Date().toISOString() })
+      .eq('id', 1)
+
+    setIsPublishSaving(false)
+
+    if (error) {
+      setIsPublished(!nextValue)
+      setStatusMessage(`Nem sikerült módosítani a publikálást: ${error.message}`)
+      return
+    }
+
+    setStatusMessage(
+      nextValue
+        ? 'A menetrend mostantól megjelenik a kezdőlapon.'
+        : 'A menetrend nem jelenik meg a kezdőlapon.',
+    )
+  }
 
   function updateScheduleItem(index, field, value) {
     setScheduleItems((currentItems) =>
@@ -193,6 +230,26 @@ export default function AdminSchedulePage() {
 
         {hasAccess && (
           <>
+            <label className="publish-toggle">
+              <input
+                type="checkbox"
+                checked={isPublished}
+                onChange={togglePublish}
+                disabled={isPublishSaving}
+              />
+              <span className="publish-toggle-track" aria-hidden="true">
+                <span className="publish-toggle-thumb" />
+              </span>
+              <span className="publish-toggle-text">
+                <strong>Menetrend publikálása a kezdőlapon</strong>
+                <span>
+                  {isPublished
+                    ? 'A publikus menetrendi pontok megjelennek a látogatóknak.'
+                    : 'A kezdőlapon csak annyi látszik: „Hamarosan jönnek a részletek”.'}
+                </span>
+              </span>
+            </label>
+
             {!isEditing ? (
               <>
                 <div className="admin-actions">

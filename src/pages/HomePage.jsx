@@ -17,10 +17,10 @@ import galleryHands from '../assets/61da3cf8-c618-49c7-bcf5-f21c77e268ec.jpg'
 import galleryHighFive from '../assets/2c30ff7d-604d-40cb-ad01-e8141e1c4f31.jpg'
 import gallerySitting from '../assets/2bd4f1fd-b6e8-4b93-b8f9-fb9f1c688ccb.jpg'
 
-// TODO: Ide kerül a Supabase Storage-ra feltöltött álló (Instagram) save-the-date
-// videó nyilvános URL-je, pl. 'https://XXXX.supabase.co/storage/v1/object/public/wedding-media/save-the-date.mp4'
-// Amíg üres, a hero a poszter fotót mutatja.
-const heroVideoSrc = ''
+// A Supabase Storage-ra feltöltött álló (Instagram) save-the-date videó
+// nyilvános URL-je. Amíg üres, a hero a poszter fotót mutatja.
+const heroVideoSrc =
+  'https://aqlhjwejodudvfuhmcmi.supabase.co/storage/v1/object/public/wedding_media/save%20the%20date_compressed.mp4'
 
 const WEDDING_DATE = new Date(2027, 5, 5, 14, 30, 0)
 
@@ -204,17 +204,33 @@ function useScrollReveal() {
 export default function HomePage() {
   useScrollReveal()
   const [scheduleItems, setScheduleItems] = useState([])
+  const [isSchedulePublished, setIsSchedulePublished] = useState(false)
 
   useEffect(() => {
     let isActive = true
 
     async function loadPublicSchedule() {
-      const { data, error } = await supabase
-        .from('schedule_items')
-        .select('event_time, title, is_public')
-        .eq('is_public', true)
+      const [scheduleResult, settingsResult] = await Promise.all([
+        supabase
+          .from('schedule_items')
+          .select('event_time, title, is_public')
+          .eq('is_public', true),
+        supabase
+          .from('site_settings')
+          .select('schedule_published')
+          .eq('id', 1)
+          .maybeSingle(),
+      ])
 
-      if (!isActive || error || !data) {
+      if (!isActive) {
+        return
+      }
+
+      setIsSchedulePublished(settingsResult.data?.schedule_published ?? false)
+
+      const { data, error } = scheduleResult
+
+      if (error || !data) {
         return
       }
 
@@ -234,6 +250,8 @@ export default function HomePage() {
       isActive = false
     }
   }, [])
+
+  const showSchedule = isSchedulePublished && scheduleItems.length > 0
 
   return (
     <main>
@@ -372,9 +390,9 @@ export default function HomePage() {
             is megerősítjük.
           </p>
         </div>
-        {scheduleItems.length === 0 ? (
+        {!showSchedule ? (
           <p className="section-lead">
-            A részletes menetrendet hamarosan itt találjátok.
+            Hamarosan jönnek a részletek.
           </p>
         ) : (
           <ol className="schedule-preview">
