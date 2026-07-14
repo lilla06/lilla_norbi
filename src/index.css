@@ -1001,7 +1001,7 @@ p {
   display: grid;
   grid-auto-columns: minmax(260px, 360px);
   grid-auto-flow: column;
-  gap: 18px;
+  gap: 8px;
   margin-top: 28px;
   padding: 8px 4px 18px;
   overflow-x: auto;
@@ -2693,21 +2693,21 @@ p {
 
   .swatch-grid {
     grid-template-columns: 1fr;
-    gap: 12px;
+    gap: 20px;
     max-width: 320px;
     margin-inline: auto;
+    justify-items: center;
   }
 
   .swatch {
     display: grid;
-    grid-template-columns: 48px 1fr;
-    align-items: center;
-    gap: 14px;
-    text-align: left;
+    justify-items: center;
+    gap: 10px;
+    text-align: center;
   }
 
   .swatch-color {
-    width: 48px;
+    width: 72px;
     aspect-ratio: 1;
   }
 
@@ -2751,6 +2751,7 @@ p {
 
   .gallery-track {
     grid-auto-columns: minmax(240px, 82vw);
+    gap: 8px;
   }
 
   .image-plan-grid {
