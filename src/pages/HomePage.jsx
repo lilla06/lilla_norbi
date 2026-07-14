@@ -317,6 +317,11 @@ export default function HomePage() {
                   >
                     <source src={heroVideoSrc} type="video/mp4" />
                   </video>
+                  <div className="hero-caption" aria-hidden="true">
+                    <span className="hero-caption-eyebrow">Összeházasodunk</span>
+                    <span className="hero-caption-title">Lilla &amp; Norbi</span>
+                    <span className="hero-caption-date">2027. június 5.</span>
+                  </div>
                   <button
                     type="button"
                     className={`hero-sound-toggle ${isVideoMuted ? 'is-muted' : ''}`}

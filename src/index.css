@@ -322,6 +322,37 @@ main {
   background: var(--forest-deep);
 }
 
+/* Felirat a videón - desktopon rejtve (ott a jobb oldali panel viszi a szöveget),
+   mobilon alsó gradienttel elegáns editorial címként jelenik meg */
+.hero-caption {
+  display: none;
+}
+
+.hero-caption-eyebrow {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--gold-light);
+}
+
+.hero-caption-title {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  line-height: 0.98;
+  letter-spacing: 0.01em;
+  color: var(--cream-light);
+  text-shadow: 0 2px 22px rgba(8, 16, 9, 0.55);
+}
+
+.hero-caption-date {
+  font-family: var(--font-serif);
+  font-style: italic;
+  letter-spacing: 0.02em;
+  color: var(--gold-light);
+}
+
 /* Hangkapcsoló gomb a videón - elegáns kör alakú aranygomb */
 .hero-sound-toggle {
   position: absolute;
@@ -2814,18 +2845,64 @@ p {
     margin: 0;
   }
 
+  /* A felirat visszakerül a videóra: lágy alsó gradient + editorial cím,
+     így a videó végig látszik, de a hero nem hat üresnek */
+  .hero-caption {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 96px 24px calc(30px + env(safe-area-inset-bottom));
+    text-align: center;
+    pointer-events: none;
+    background: linear-gradient(
+      to top,
+      rgba(12, 22, 14, 0.82) 0%,
+      rgba(12, 22, 14, 0.5) 44%,
+      rgba(12, 22, 14, 0) 100%
+    );
+  }
+
+  .hero-caption-title {
+    font-size: clamp(38px, 12vw, 64px);
+  }
+
+  .hero-caption-date {
+    font-size: clamp(18px, 5.4vw, 26px);
+  }
+
+  /* A videón lévő címmel ne legyen duplikáció: a panelban a nevet,
+     dátumot és eyebrow-t elrejtjük, ott marad a visszaszámláló, szöveg, CTA */
+  .hero-panel .monogram,
+  .hero-panel .eyebrow,
+  .hero-panel h1,
+  .hero-panel .wedding-date {
+    display: none;
+  }
+
+  /* A hangkapcsoló a videó tetejére kerül, hogy ne ütközzön a felirattal */
+  .hero-sound-toggle {
+    top: 14px;
+    right: 14px;
+    bottom: auto;
+  }
+
   .hero-panel {
     z-index: 1;
     align-self: start;
     max-width: none;
     margin-top: 0;
-    padding: 24px 26px calc(48px + env(safe-area-inset-bottom));
+    padding: 30px 26px calc(48px + env(safe-area-inset-bottom));
     text-align: center;
     background: none;
     backdrop-filter: none;
   }
 
-  .hero-panel .monogram,
   .hero-panel .gold-divider,
   .hero-cta,
   .countdown {
@@ -2965,7 +3042,7 @@ p {
   }
 
   .hero-panel {
-    padding: 8px 22px calc(44px + env(safe-area-inset-bottom));
+    padding: 26px 22px calc(44px + env(safe-area-inset-bottom));
   }
 
   .image-break,
