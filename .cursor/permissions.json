@@ -1,0 +1,16 @@
+﻿{
+  "terminalAllowlist": [
+    "git status",
+    "git diff",
+    "git log",
+    "git add",
+    "git commit",
+    "git push",
+    "npm run build"
+  ],
+  "autoRun": {
+    "block_instructions": [
+      "force push es destruktiv git parancsok mindig kerjenek engedelyt."
+    ]
+  }
+}

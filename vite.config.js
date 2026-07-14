@@ -8,4 +8,10 @@ export default defineConfig({
     react(),
     babel({ presets: [reactCompilerPreset()] })
   ],
+  server: {
+    watch: {
+      // A .cursor mappa (pl. permissions.json) OneDrive alatt EBUSY hibát okozhat
+      ignored: ['**/.cursor/**'],
+    },
+  },
 })
