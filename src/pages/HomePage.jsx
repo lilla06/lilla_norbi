@@ -33,32 +33,39 @@ const quickActions = [
 
 const storyMilestones = [
   {
-    year: '2019',
+    year: '2023',
     title: 'Ahol minden kezdődött',
-    text: 'Egy baráti társaságban ismerkedtünk meg, és már az első beszélgetés is órákig tartott.',
+    text: '2023 őszén egy salsa órán találkoztunk. Akkor még nem tudtuk, hogy a ritmus, amire együtt lépünk, egész életünkre kísérni fog minket.',
+    image: storyBigDay,
+    imageAlt: 'Lilla és Norbi táncolva a tóparton',
+  },
+  {
+    year: '2024',
+    title: 'Az első randi',
+    text: '2024 őszén végre megtörtént: harmadszorra hívott el Norbi randizni, és onnantól kezdve egyre világosabbá vált, hogy ez több, mint egy jó esté.',
     image: storyMet,
     imageAlt: 'Lilla és Norbi egymást átölelve',
   },
   {
-    year: '2021',
-    title: 'Az első közös utazás',
-    text: 'Egy erdei kiránduláson jöttünk rá, hogy a csendben is jó együtt lenni.',
+    year: '2025',
+    title: 'Együtt, minden nap',
+    text: '2025 elején összeköltöztünk, és hamarosan a közös kalandok is elkezdődtek: síeltünk Franciaországban, jártunk Mallorcán és a Dominikai Köztársaságban, Egyiptomban pedig együtt búvárkodtunk.',
     image: storyTravel,
     imageAlt: 'Lilla és Norbi egymás szemébe nézve',
   },
   {
-    year: '2025',
+    year: '2026',
     title: 'Az igen',
-    text: 'Egy naplementés séta végén, a fák között tettük fel életünk legszebb kérdését.',
+    text: '2026 márciusában a Fülöpszigeteken eljegyeztük egymást. Egy nap, egy hely, egy ígéret — és egy élet, amit már közösen építünk tovább.',
     image: storyProposal,
     imageAlt: 'Norbi megcsókolja Lilla kezét, látszik az eljegyzési gyűrű',
   },
   {
     year: '2027',
     title: 'A nagy nap',
-    text: 'Most pedig szeretnénk, ha ti is velünk lennétek, amikor kimondjuk a boldogító igent.',
-    image: storyBigDay,
-    imageAlt: 'Lilla és Norbi táncolva a tóparton',
+    text: 'Most pedig jön a következő fejezet: jövőre összeházasodunk, és szeretnénk, ha ti is velünk lennétek, amikor kimondjuk a boldogító igent.',
+    image: storyMet,
+    imageAlt: 'Lilla és Norbi egymást átölelve',
   },
 ]
 
