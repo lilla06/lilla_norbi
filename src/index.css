@@ -145,6 +145,10 @@ a {
   right: clamp(20px, 5vw, 64px);
   display: none;
   min-width: min(320px, calc(100vw - 40px));
+  max-height: calc(100vh - 100px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   padding: 12px;
   background: #fff8e7;
   border: 1px solid rgba(112, 84, 50, 0.18);
@@ -2279,6 +2283,30 @@ p {
 
   .quick-action-title {
     font-size: 18px;
+  }
+
+  .swatch-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    max-width: 320px;
+    margin-inline: auto;
+  }
+
+  .swatch {
+    display: grid;
+    grid-template-columns: 48px 1fr;
+    align-items: center;
+    gap: 14px;
+    text-align: left;
+  }
+
+  .swatch-color {
+    width: 48px;
+    aspect-ratio: 1;
+  }
+
+  .swatch figcaption {
+    margin-top: 0;
   }
 
   .editorial-section,

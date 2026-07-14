@@ -11,14 +11,13 @@ function isAdmin(user) {
 }
 
 const homepageSections = [
-  { hash: 'hero', label: 'Lilla & Norbi' },
   { hash: 'invitation', label: 'Meghívó' },
   { hash: 'quick-actions', label: 'Gyors elérés' },
   { hash: 'story', label: 'Az út idáig' },
   { hash: 'important-info', label: 'Fontos információk' },
   { hash: 'schedule', label: 'Menetrend' },
   { hash: 'dress-code', label: 'Dress code' },
-  { hash: 'gallery', label: 'Pillanatok' },
+  { hash: 'gallery', label: 'Galéria' },
 ]
 
 export default function Layout({ children }) {
@@ -109,16 +108,6 @@ export default function Layout({ children }) {
           className={`main-menu ${isMenuOpen ? 'is-open' : ''}`}
           aria-label="Fő navigáció"
         >
-          {homepageSections.map((section) => (
-            <Link
-              key={section.hash}
-              to={`/#${section.hash}`}
-              onClick={closeMenu}
-            >
-              {section.label}
-            </Link>
-          ))}
-          <Link to="/rsvp" onClick={closeMenu}>RSVP</Link>
           {user ? (
             <>
               <Link to="/profile" onClick={closeMenu}>Profil</Link>
@@ -157,6 +146,16 @@ export default function Layout({ children }) {
               </div>
             </div>
           )}
+          {homepageSections.map((section) => (
+            <Link
+              key={section.hash}
+              to={`/#${section.hash}`}
+              onClick={closeMenu}
+            >
+              {section.label}
+            </Link>
+          ))}
+          <Link to="/rsvp" onClick={closeMenu}>RSVP</Link>
         </nav>
       </header>
 
