@@ -111,6 +111,7 @@ export default function Layout({ children }) {
           {user ? (
             <>
               <Link to="/profile" onClick={closeMenu}>Profil</Link>
+              <Link to="/rsvp" onClick={closeMenu}>Visszajelzés</Link>
               <button type="button" onClick={handleSignOut}>Kijelentkezés</button>
             </>
           ) : (
@@ -155,7 +156,6 @@ export default function Layout({ children }) {
               {section.label}
             </Link>
           ))}
-          <Link to="/rsvp" onClick={closeMenu}>RSVP</Link>
         </nav>
       </header>
 
