@@ -1,17 +1,11 @@
--- Feladatok: mikor végezhető el
--- Futtasd a Supabase SQL Editorban, miután a tasks_schema.sql már lefutott.
+-- Feladatok időzítési opciók frissítése
+-- Futtasd a Supabase SQL Editorban, ha a timing oszlop / constraint már létezik.
 -- Fontos: előbb a constraintet dobjuk el, csak utána írjuk át az adatokat.
 
 alter table public.wedding_tasks
   drop constraint if exists wedding_tasks_timing_check;
 
-alter table public.wedding_tasks
-  add column if not exists timing text not null default 'months_before_more_than_6';
-
-alter table public.wedding_tasks
-  alter column timing set default 'months_before_more_than_6';
-
--- Régi értékek átírása (ha már voltak adatok a korábbi skálával)
+-- Régi értékek átírása az új skálára
 update public.wedding_tasks
 set timing = 'wedding_week'
 where timing = 'week_before';
@@ -46,6 +40,9 @@ where timing not in (
 );
 
 alter table public.wedding_tasks
+  alter column timing set default 'months_before_more_than_6';
+
+alter table public.wedding_tasks
   add constraint wedding_tasks_timing_check
   check (
     timing in (
@@ -62,6 +59,3 @@ alter table public.wedding_tasks
       'months_before_more_than_6'
     )
   );
-
-create index if not exists wedding_tasks_timing_idx
-  on public.wedding_tasks (timing);

@@ -499,7 +499,7 @@ export default function AdminTasksPage() {
                   }
                   onClick={() => setTimingSortDirection('wedding-to-anytime')}
                 >
-                  Aznaptól bármikorig
+                  Aznaptól a legkorábbig
                 </button>
                 <button
                   type="button"
@@ -508,7 +508,7 @@ export default function AdminTasksPage() {
                   }
                   onClick={() => setTimingSortDirection('anytime-to-wedding')}
                 >
-                  Bármikortól aznapig
+                  Legkorábbitól aznapig
                 </button>
               </div>
             </div>

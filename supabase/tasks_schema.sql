@@ -16,16 +16,20 @@ create table if not exists public.wedding_tasks (
   progress integer not null default 0
     check (progress >= 0 and progress <= 100),
   notes text not null default '',
-  timing text not null default 'anytime'
+  timing text not null default 'months_before_more_than_6'
     check (
       timing in (
         'wedding_day',
         'days_before_1',
         'days_before_2',
         'days_before_3',
-        'week_before',
-        'rsvp_window',
-        'anytime'
+        'wedding_week',
+        'weeks_before_1',
+        'weeks_before_2_3',
+        'months_before_1',
+        'months_before_2',
+        'months_before_3_6',
+        'months_before_more_than_6'
       )
     ),
   sort_order integer not null default 0,
