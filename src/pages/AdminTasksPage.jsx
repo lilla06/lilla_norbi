@@ -53,6 +53,7 @@ export default function AdminTasksPage() {
   const [isCreating, setIsCreating] = useState(false)
   const [expandedTaskIds, setExpandedTaskIds] = useState(() => new Set())
   const [timingSortDirection, setTimingSortDirection] = useState('anytime-to-wedding')
+  const [assigneeFilter, setAssigneeFilter] = useState('all')
 
   useEffect(() => {
     async function loadTasks() {
@@ -171,6 +172,56 @@ export default function AdminTasksPage() {
       })
   }, [tasks, assigneesByTask, timingSortDirection])
 
+  function matchesAssigneeFilter(assigneeIds) {
+    if (assigneeFilter === 'all') {
+      return true
+    }
+
+    if (assigneeFilter === 'unassigned') {
+      return assigneeIds.length === 0
+    }
+
+    if (assigneeFilter.startsWith('only:')) {
+      const userId = assigneeFilter.slice('only:'.length)
+      return assigneeIds.length === 1 && assigneeIds[0] === userId
+    }
+
+    return assigneeIds.includes(assigneeFilter)
+  }
+
+  function childMatchesFilter(child) {
+    return matchesAssigneeFilter(assigneesByTask[child.id] || [])
+  }
+
+  function topLevelMatchesFilter(task) {
+    if (assigneeFilter === 'all') {
+      return true
+    }
+
+    if (task.hasChildren) {
+      // „Csak X”: a szülő akkor is megjelenik, ha van legalább egy csak X alfeladata
+      if (assigneeFilter.startsWith('only:')) {
+        return task.children.some(childMatchesFilter)
+      }
+
+      // Egyéb felelős-szűrőknél: a gyerekek uniója vagy bármelyik gyerek illeszkedik
+      return (
+        matchesAssigneeFilter(task.displayAssigneeIds) ||
+        task.children.some(childMatchesFilter)
+      )
+    }
+
+    return matchesAssigneeFilter(task.displayAssigneeIds)
+  }
+
+  const filteredTopLevelTasks = useMemo(() => {
+    if (assigneeFilter === 'all') {
+      return topLevelTasks
+    }
+
+    return topLevelTasks.filter(topLevelMatchesFilter)
+  }, [topLevelTasks, assigneeFilter, assigneesByTask])
+
   function profileName(userId) {
     return adminProfiles.find((profile) => profile.user_id === userId)?.display_name || 'Admin'
   }
@@ -235,42 +286,18 @@ export default function AdminTasksPage() {
     )
   }
 
-  function renderAssigneeCell(task, { readonly = false } = {}) {
-    if (readonly) {
-      const assigneeIds = task.displayAssigneeIds || []
-
-      return (
-        <div className="task-assignee-chips">
-          {assigneeIds.length === 0 ? (
-            <span className="task-assignee-empty">Nincs hozzárendelve</span>
-          ) : (
-            assigneeIds.map((userId) => (
-              <span className="task-assignee-chip" key={userId}>
-                {profileName(userId)}
-              </span>
-            ))
-          )}
-        </div>
-      )
-    }
-
+  function renderAssigneeCell(assigneeIds) {
     return (
-      <div className="task-assignee-picker">
-        {adminProfiles.map((profile) => {
-          const checked = (assigneesByTask[task.id] || []).includes(profile.user_id)
-
-          return (
-            <label key={profile.user_id} className="task-assignee-option">
-              <input
-                type="checkbox"
-                checked={checked}
-                disabled={savingTaskId === task.id}
-                onChange={() => toggleAssignee(task.id, profile.user_id)}
-              />
-              <span>{profile.display_name}</span>
-            </label>
-          )
-        })}
+      <div className="task-assignee-chips">
+        {assigneeIds.length === 0 ? (
+          <span className="task-assignee-empty">—</span>
+        ) : (
+          assigneeIds.map((userId) => (
+            <span className="task-assignee-chip" key={userId}>
+              {profileName(userId)}
+            </span>
+          ))
+        )}
       </div>
     )
   }
@@ -380,55 +407,6 @@ export default function AdminTasksPage() {
     }
   }
 
-  async function toggleAssignee(taskId, userId) {
-    const current = assigneesByTask[taskId] || []
-    const isAssigned = current.includes(userId)
-    const nextIds = isAssigned
-      ? current.filter((id) => id !== userId)
-      : [...current, userId]
-
-    setAssigneesByTask((currentMap) => ({
-      ...currentMap,
-      [taskId]: nextIds,
-    }))
-    setSavingTaskId(taskId)
-    setStatusMessage('')
-
-    if (isAssigned) {
-      const { error } = await supabase
-        .from('wedding_task_assignees')
-        .delete()
-        .eq('task_id', taskId)
-        .eq('user_id', userId)
-
-      setSavingTaskId(null)
-
-      if (error) {
-        setAssigneesByTask((currentMap) => ({
-          ...currentMap,
-          [taskId]: current,
-        }))
-        setStatusMessage(`Nem sikerült módosítani a hozzárendelést: ${error.message}`)
-      }
-
-      return
-    }
-
-    const { error } = await supabase
-      .from('wedding_task_assignees')
-      .insert({ task_id: taskId, user_id: userId })
-
-    setSavingTaskId(null)
-
-    if (error) {
-      setAssigneesByTask((currentMap) => ({
-        ...currentMap,
-        [taskId]: current,
-      }))
-      setStatusMessage(`Nem sikerült módosítani a hozzárendelést: ${error.message}`)
-    }
-  }
-
   async function deleteTask(taskId) {
     const confirmed = window.confirm(
       'Biztosan törölni szeretnéd ezt a feladatot? Az alfeladatok és alapanyagok is törlődnek.',
@@ -477,19 +455,55 @@ export default function AdminTasksPage() {
         <p className="eyebrow">Admin</p>
         <h1>Feladatok</h1>
         <p className="admin-summary">
-          Kövesd az esküvőig elvégzendő feladatokat. A készültség azonnal szerkeszthető. Ha egy
-          feladatnak alfeladatai vannak, a készültség azok átlaga, és a hozzárendeltek az
-          alfeladatok felelőseinek összessége.
+          Kövesd az esküvőig elvégzendő feladatokat. A készültség és az időzítés a listában
+          szerkeszthető. A hozzárendeléseket a feladat részletes oldalán lehet módosítani.
         </p>
 
         {statusMessage && <p className="form-message">{statusMessage}</p>}
 
         {hasAccess && (
           <>
-            <div className="admin-actions">
+            <div className="admin-actions task-list-toolbar">
               <button type="button" onClick={createTask} disabled={isCreating}>
                 {isCreating ? 'Létrehozás...' : 'Új feladat'}
               </button>
+              <div className="task-filter-controls" role="group" aria-label="Szűrés felelős szerint">
+                <span>Felelős:</span>
+                <button
+                  type="button"
+                  className={assigneeFilter === 'all' ? 'is-active' : ''}
+                  onClick={() => setAssigneeFilter('all')}
+                >
+                  Összes
+                </button>
+                {adminProfiles.map((profile) => (
+                  <button
+                    key={profile.user_id}
+                    type="button"
+                    className={assigneeFilter === profile.user_id ? 'is-active' : ''}
+                    onClick={() => setAssigneeFilter(profile.user_id)}
+                  >
+                    {profile.display_name}
+                  </button>
+                ))}
+                {adminProfiles.map((profile) => (
+                  <button
+                    key={`only-${profile.user_id}`}
+                    type="button"
+                    className={assigneeFilter === `only:${profile.user_id}` ? 'is-active' : ''}
+                    onClick={() => setAssigneeFilter(`only:${profile.user_id}`)}
+                  >
+                    Csak {profile.display_name}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className={assigneeFilter === 'unassigned' ? 'is-active' : ''}
+                  onClick={() => setAssigneeFilter('unassigned')}
+                >
+                  Nincs hozzárendelve
+                </button>
+              </div>
               <div className="task-sort-controls" role="group" aria-label="Rendezés időzítés szerint">
                 <span>Rendezés:</span>
                 <button
@@ -533,13 +547,26 @@ export default function AdminTasksPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {topLevelTasks.length === 0 ? (
+                  {filteredTopLevelTasks.length === 0 ? (
                     <tr>
-                      <td colSpan="5">Még nincs feladat. Hozz létre egyet az Új feladat gombbal.</td>
+                      <td colSpan="5">
+                        {topLevelTasks.length === 0
+                          ? 'Még nincs feladat. Hozz létre egyet az Új feladat gombbal.'
+                          : 'Nincs a szűrőnek megfelelő feladat.'}
+                      </td>
                     </tr>
                   ) : (
-                    topLevelTasks.flatMap((task) => {
+                    filteredTopLevelTasks.flatMap((task) => {
                       const isExpanded = expandedTaskIds.has(task.id)
+                      const visibleChildren =
+                        assigneeFilter === 'all'
+                          ? task.children
+                          : task.children.filter(childMatchesFilter)
+                      const showChildren =
+                        task.hasChildren &&
+                        visibleChildren.length > 0 &&
+                        (isExpanded || assigneeFilter !== 'all')
+
                       const rows = [
                         <tr key={task.id} className={task.hasChildren ? 'task-row-parent' : ''}>
                           <td>
@@ -547,14 +574,17 @@ export default function AdminTasksPage() {
                               {task.hasChildren ? (
                                 <button
                                   type="button"
-                                  className={`task-expand-toggle ${isExpanded ? 'is-open' : ''}`}
+                                  className={`task-expand-toggle ${
+                                    isExpanded || assigneeFilter !== 'all' ? 'is-open' : ''
+                                  }`}
                                   onClick={() => toggleExpanded(task.id)}
-                                  aria-expanded={isExpanded}
+                                  aria-expanded={isExpanded || assigneeFilter !== 'all'}
                                   aria-label={
-                                    isExpanded
+                                    isExpanded || assigneeFilter !== 'all'
                                       ? 'Alfeladatok becsukása'
                                       : 'Alfeladatok lenyitása'
                                   }
+                                  disabled={assigneeFilter !== 'all'}
                                 >
                                   <span aria-hidden="true" />
                                 </button>
@@ -580,12 +610,11 @@ export default function AdminTasksPage() {
                               { readonly: task.hasChildren },
                             )}
                           </td>
-                          <td>
-                            {renderAssigneeCell(task, { readonly: task.hasChildren })}
-                          </td>
+                          <td>{renderAssigneeCell(task.displayAssigneeIds)}</td>
                           <td>
                             <button
                               type="button"
+                              className="task-row-action"
                               onClick={() => deleteTask(task.id)}
                               disabled={savingTaskId === task.id}
                             >
@@ -595,23 +624,28 @@ export default function AdminTasksPage() {
                         </tr>,
                       ]
 
-                      if (task.hasChildren && isExpanded) {
-                        task.children.forEach((child) => {
+                      if (showChildren) {
+                        visibleChildren.forEach((child) => {
                           rows.push(
                             <tr key={child.id} className="task-row-child">
                               <td>
                                 <div className="task-title-cell is-child">
                                   <span className="task-expand-spacer" aria-hidden="true" />
-                                  <span className="task-child-title">
+                                  <Link
+                                    className="task-child-title"
+                                    to={`/admin/tasks/${task.id}`}
+                                  >
                                     {child.title || 'Névtelen alfeladat'}
-                                  </span>
+                                  </Link>
                                 </div>
                               </td>
                               <td className="task-timing-cell">{renderTimingCell(child)}</td>
                               <td className="task-progress-cell">
                                 {renderProgressCell(child)}
                               </td>
-                              <td>{renderAssigneeCell(child)}</td>
+                              <td>
+                                {renderAssigneeCell(assigneesByTask[child.id] || [])}
+                              </td>
                               <td />
                             </tr>,
                           )
