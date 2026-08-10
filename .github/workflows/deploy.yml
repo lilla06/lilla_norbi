@@ -37,6 +37,12 @@ jobs:
       - name: Build
         run: npm run build
 
+      # GitHub Pages statikusan szolgal ki, ezert a kliensoldali route-ok
+      # (pl. /admin/tasks) frissitesnel 404-et adnanak. A 404.html ugyanaz,
+      # mint az index.html, igy a router az eredeti URL alapjan rendereli az oldalt.
+      - name: Add SPA fallback
+        run: cp dist/index.html dist/404.html
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
