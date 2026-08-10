@@ -1242,7 +1242,7 @@ p {
 
 .image-plan-section {
   max-width: min(1120px, calc(100% - 48px));
-  padding-bottom: 148px;
+  padding-bottom: 48px;
 }
 
 .image-plan-grid {
@@ -1295,7 +1295,7 @@ p {
   min-height: 100vh;
   display: grid;
   place-items: center;
-  padding: 128px 24px 112px;
+  padding: 128px 24px 48px;
   background-color: var(--forest-deep);
   background-image:
     radial-gradient(circle at 50% 8%, rgba(212, 175, 55, 0.18), transparent 28%),
@@ -2287,7 +2287,7 @@ p {
 .rooms-page {
   display: block;
   min-height: 100vh;
-  padding: 128px 24px 112px;
+  padding: 128px 24px 48px;
   background-color: var(--cream);
   background-image:
     linear-gradient(rgba(245, 237, 223, 0.82), rgba(245, 237, 223, 0.86)),
@@ -3122,11 +3122,7 @@ p {
 }
 
 .site-footer {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 10;
+  position: static;
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
@@ -3412,7 +3408,7 @@ p {
 
   .auth-page {
     place-items: start center;
-    padding: 112px 12px 104px;
+    padding: 112px 12px 40px;
   }
 
   .auth-card {
@@ -3587,11 +3583,11 @@ p {
   }
 
   .seating-page {
-    padding: 112px 10px 104px;
+    padding: 112px 10px 40px;
   }
 
   .budget-page {
-    padding: 112px 12px 104px;
+    padding: 112px 12px 40px;
   }
 
   .budget-card {
@@ -3705,10 +3701,7 @@ p {
     padding: 14px;
   }
 
-  /* Telefonon a footer ne legyen fixen a képernyőn, csak a lap alján
-     jelenjen meg, amikor legörgetünk */
   .site-footer {
-    position: static;
     padding: 20px 14px;
     font-size: 12px;
   }
