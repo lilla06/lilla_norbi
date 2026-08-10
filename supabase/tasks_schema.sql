@@ -16,6 +16,18 @@ create table if not exists public.wedding_tasks (
   progress integer not null default 0
     check (progress >= 0 and progress <= 100),
   notes text not null default '',
+  timing text not null default 'anytime'
+    check (
+      timing in (
+        'wedding_day',
+        'days_before_1',
+        'days_before_2',
+        'days_before_3',
+        'week_before',
+        'rsvp_window',
+        'anytime'
+      )
+    ),
   sort_order integer not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -35,6 +47,7 @@ create table if not exists public.wedding_task_materials (
   name text not null default '',
   source text not null default '',
   estimated_price numeric(12, 2) not null default 0,
+  is_acquired boolean not null default false,
   sort_order integer not null default 0,
   created_at timestamptz not null default now()
 );
@@ -44,6 +57,9 @@ create index if not exists wedding_tasks_parent_id_idx
 
 create index if not exists wedding_tasks_sort_order_idx
   on public.wedding_tasks (sort_order);
+
+create index if not exists wedding_tasks_timing_idx
+  on public.wedding_tasks (timing);
 
 create index if not exists wedding_task_assignees_user_id_idx
   on public.wedding_task_assignees (user_id);

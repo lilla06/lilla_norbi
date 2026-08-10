@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import {
+  DEFAULT_TASK_TIMING,
+  TASK_TIMING_OPTIONS,
+  normalizeTaskTiming,
+  taskTimingSortRank,
+} from '../lib/taskTiming'
 
 function isAdmin(user) {
   return user?.app_metadata?.role === 'admin'
@@ -45,6 +51,8 @@ export default function AdminTasksPage() {
   const [statusMessage, setStatusMessage] = useState('')
   const [savingTaskId, setSavingTaskId] = useState(null)
   const [isCreating, setIsCreating] = useState(false)
+  const [expandedTaskIds, setExpandedTaskIds] = useState(() => new Set())
+  const [timingSortDirection, setTimingSortDirection] = useState('wedding-to-anytime')
 
   useEffect(() => {
     async function loadTasks() {
@@ -67,7 +75,7 @@ export default function AdminTasksPage() {
       const [tasksResult, assigneesResult, profilesResult] = await Promise.all([
         supabase
           .from('wedding_tasks')
-          .select('id, parent_id, title, progress, notes, sort_order')
+          .select('id, parent_id, title, progress, notes, timing, sort_order')
           .order('sort_order')
           .order('created_at'),
         supabase.from('wedding_task_assignees').select('task_id, user_id'),
@@ -104,7 +112,12 @@ export default function AdminTasksPage() {
         nextAssignees[row.task_id].push(row.user_id)
       })
 
-      setTasks(tasksResult.data || [])
+      setTasks(
+        (tasksResult.data || []).map((task) => ({
+          ...task,
+          timing: normalizeTaskTiming(task.timing),
+        })),
+      )
       setAssigneesByTask(nextAssignees)
       setAdminProfiles(profilesResult.data || [])
       setIsLoading(false)
@@ -114,12 +127,23 @@ export default function AdminTasksPage() {
   }, [navigate])
 
   const topLevelTasks = useMemo(() => {
+    const directionFactor = timingSortDirection === 'wedding-to-anytime' ? 1 : -1
+
     return tasks
       .filter((task) => !task.parent_id)
       .map((task) => {
         const children = tasks
           .filter((child) => child.parent_id === task.id)
-          .sort((a, b) => a.sort_order - b.sort_order)
+          .sort((a, b) => {
+            const timingDiff =
+              (taskTimingSortRank(a.timing) - taskTimingSortRank(b.timing)) * directionFactor
+
+            if (timingDiff !== 0) {
+              return timingDiff
+            }
+
+            return a.sort_order - b.sort_order
+          })
         const hasChildren = children.length > 0
         const progress = hasChildren ? averageProgress(children) : clampProgress(task.progress)
         const assigneeIds = hasChildren
@@ -128,16 +152,145 @@ export default function AdminTasksPage() {
 
         return {
           ...task,
+          timing: normalizeTaskTiming(task.timing),
           children,
           hasChildren,
           displayProgress: progress,
           displayAssigneeIds: assigneeIds,
         }
       })
-  }, [tasks, assigneesByTask])
+      .sort((a, b) => {
+        const timingDiff =
+          (taskTimingSortRank(a.timing) - taskTimingSortRank(b.timing)) * directionFactor
+
+        if (timingDiff !== 0) {
+          return timingDiff
+        }
+
+        return a.sort_order - b.sort_order
+      })
+  }, [tasks, assigneesByTask, timingSortDirection])
 
   function profileName(userId) {
     return adminProfiles.find((profile) => profile.user_id === userId)?.display_name || 'Admin'
+  }
+
+  function toggleExpanded(taskId) {
+    setExpandedTaskIds((current) => {
+      const next = new Set(current)
+
+      if (next.has(taskId)) {
+        next.delete(taskId)
+      } else {
+        next.add(taskId)
+      }
+
+      return next
+    })
+  }
+
+  function renderProgressCell(task, { readonly = false } = {}) {
+    const progress = clampProgress(task.progress)
+
+    if (readonly) {
+      return (
+        <div className="task-progress-readonly">
+          <div className="task-progress-bar" aria-hidden="true">
+            <span style={{ width: `${progress}%` }} />
+          </div>
+          <strong>{progress}%</strong>
+          <span className="task-progress-hint">átlag</span>
+        </div>
+      )
+    }
+
+    return (
+      <div className="task-progress-edit">
+        <div className="task-progress-bar" aria-hidden="true">
+          <span style={{ width: `${progress}%` }} />
+        </div>
+        <input
+          type="number"
+          min="0"
+          max="100"
+          value={progress}
+          disabled={savingTaskId === task.id}
+          onChange={(event) =>
+            setTasks((current) =>
+              current.map((item) =>
+                item.id === task.id
+                  ? {
+                      ...item,
+                      progress: clampProgress(event.target.value),
+                    }
+                  : item,
+              ),
+            )
+          }
+          onBlur={(event) => saveProgress(task.id, event.target.value)}
+          aria-label={`${task.title} készültsége`}
+        />
+        <span>%</span>
+      </div>
+    )
+  }
+
+  function renderAssigneeCell(task, { readonly = false } = {}) {
+    if (readonly) {
+      const assigneeIds = task.displayAssigneeIds || []
+
+      return (
+        <div className="task-assignee-chips">
+          {assigneeIds.length === 0 ? (
+            <span className="task-assignee-empty">Nincs hozzárendelve</span>
+          ) : (
+            assigneeIds.map((userId) => (
+              <span className="task-assignee-chip" key={userId}>
+                {profileName(userId)}
+              </span>
+            ))
+          )}
+        </div>
+      )
+    }
+
+    return (
+      <div className="task-assignee-picker">
+        {adminProfiles.map((profile) => {
+          const checked = (assigneesByTask[task.id] || []).includes(profile.user_id)
+
+          return (
+            <label key={profile.user_id} className="task-assignee-option">
+              <input
+                type="checkbox"
+                checked={checked}
+                disabled={savingTaskId === task.id}
+                onChange={() => toggleAssignee(task.id, profile.user_id)}
+              />
+              <span>{profile.display_name}</span>
+            </label>
+          )
+        })}
+      </div>
+    )
+  }
+
+  function renderTimingCell(task) {
+    return (
+      <select
+        className="task-timing-select"
+        value={normalizeTaskTiming(task.timing)}
+        disabled={savingTaskId === task.id}
+        onChange={(event) => saveTiming(task.id, event.target.value)}
+        aria-label={`${task.title} időzítése`}
+      >
+        {TASK_TIMING_OPTIONS.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    )
   }
 
   async function createTask() {
@@ -153,9 +306,10 @@ export default function AdminTasksPage() {
         title: 'Új feladat',
         progress: 0,
         notes: '',
+        timing: DEFAULT_TASK_TIMING,
         sort_order: sortOrder,
       })
-      .select('id, parent_id, title, progress, notes, sort_order')
+      .select('id, parent_id, title, progress, notes, timing, sort_order')
       .single()
 
     setIsCreating(false)
@@ -165,7 +319,10 @@ export default function AdminTasksPage() {
       return
     }
 
-    setTasks((current) => [...current, data])
+    setTasks((current) => [
+      ...current,
+      { ...data, timing: normalizeTaskTiming(data.timing) },
+    ])
     navigate(`/admin/tasks/${data.id}`)
   }
 
@@ -189,6 +346,37 @@ export default function AdminTasksPage() {
 
     if (error) {
       setStatusMessage(`Nem sikerült menteni a készültséget: ${error.message}`)
+    }
+  }
+
+  async function saveTiming(taskId, timing) {
+    const nextTiming = normalizeTaskTiming(timing)
+    const previousTiming = tasks.find((task) => task.id === taskId)?.timing
+
+    setTasks((current) =>
+      current.map((task) =>
+        task.id === taskId ? { ...task, timing: nextTiming } : task,
+      ),
+    )
+    setSavingTaskId(taskId)
+    setStatusMessage('')
+
+    const { error } = await supabase
+      .from('wedding_tasks')
+      .update({ timing: nextTiming, updated_at: new Date().toISOString() })
+      .eq('id', taskId)
+
+    setSavingTaskId(null)
+
+    if (error) {
+      setTasks((current) =>
+        current.map((task) =>
+          task.id === taskId
+            ? { ...task, timing: normalizeTaskTiming(previousTiming) }
+            : task,
+        ),
+      )
+      setStatusMessage(`Nem sikerült menteni az időzítést: ${error.message}`)
     }
   }
 
@@ -302,6 +490,27 @@ export default function AdminTasksPage() {
               <button type="button" onClick={createTask} disabled={isCreating}>
                 {isCreating ? 'Létrehozás...' : 'Új feladat'}
               </button>
+              <div className="task-sort-controls" role="group" aria-label="Rendezés időzítés szerint">
+                <span>Rendezés:</span>
+                <button
+                  type="button"
+                  className={
+                    timingSortDirection === 'wedding-to-anytime' ? 'is-active' : ''
+                  }
+                  onClick={() => setTimingSortDirection('wedding-to-anytime')}
+                >
+                  Aznaptól bármikorig
+                </button>
+                <button
+                  type="button"
+                  className={
+                    timingSortDirection === 'anytime-to-wedding' ? 'is-active' : ''
+                  }
+                  onClick={() => setTimingSortDirection('anytime-to-wedding')}
+                >
+                  Bármikortól aznapig
+                </button>
+              </div>
             </div>
 
             {!adminProfiles.length && (
@@ -317,6 +526,7 @@ export default function AdminTasksPage() {
                 <thead>
                   <tr>
                     <th>Feladat</th>
+                    <th>Mikor</th>
                     <th>Készültség</th>
                     <th>Hozzárendelve</th>
                     <th />
@@ -325,108 +535,91 @@ export default function AdminTasksPage() {
                 <tbody>
                   {topLevelTasks.length === 0 ? (
                     <tr>
-                      <td colSpan="4">Még nincs feladat. Hozz létre egyet az Új feladat gombbal.</td>
+                      <td colSpan="5">Még nincs feladat. Hozz létre egyet az Új feladat gombbal.</td>
                     </tr>
                   ) : (
-                    topLevelTasks.map((task) => (
-                      <tr key={task.id}>
-                        <td>
-                          <Link className="task-title-link" to={`/admin/tasks/${task.id}`}>
-                            {task.title || 'Névtelen feladat'}
-                          </Link>
-                          {task.hasChildren && (
-                            <span className="task-subcount">
-                              {task.children.length} alfeladat
-                            </span>
-                          )}
-                        </td>
-                        <td className="task-progress-cell">
-                          {task.hasChildren ? (
-                            <div className="task-progress-readonly">
-                              <div className="task-progress-bar" aria-hidden="true">
-                                <span style={{ width: `${task.displayProgress}%` }} />
-                              </div>
-                              <strong>{task.displayProgress}%</strong>
-                              <span className="task-progress-hint">átlag</span>
-                            </div>
-                          ) : (
-                            <div className="task-progress-edit">
-                              <div className="task-progress-bar" aria-hidden="true">
-                                <span style={{ width: `${task.displayProgress}%` }} />
-                              </div>
-                              <input
-                                type="number"
-                                min="0"
-                                max="100"
-                                value={task.displayProgress}
-                                disabled={savingTaskId === task.id}
-                                onChange={(event) =>
-                                  setTasks((current) =>
-                                    current.map((item) =>
-                                      item.id === task.id
-                                        ? {
-                                            ...item,
-                                            progress: clampProgress(event.target.value),
-                                          }
-                                        : item,
-                                    ),
-                                  )
-                                }
-                                onBlur={(event) => saveProgress(task.id, event.target.value)}
-                                aria-label={`${task.title} készültsége`}
-                              />
-                              <span>%</span>
-                            </div>
-                          )}
-                        </td>
-                        <td>
-                          {task.hasChildren ? (
-                            <div className="task-assignee-chips">
-                              {task.displayAssigneeIds.length === 0 ? (
-                                <span className="task-assignee-empty">Nincs hozzárendelve</span>
+                    topLevelTasks.flatMap((task) => {
+                      const isExpanded = expandedTaskIds.has(task.id)
+                      const rows = [
+                        <tr key={task.id} className={task.hasChildren ? 'task-row-parent' : ''}>
+                          <td>
+                            <div className="task-title-cell">
+                              {task.hasChildren ? (
+                                <button
+                                  type="button"
+                                  className={`task-expand-toggle ${isExpanded ? 'is-open' : ''}`}
+                                  onClick={() => toggleExpanded(task.id)}
+                                  aria-expanded={isExpanded}
+                                  aria-label={
+                                    isExpanded
+                                      ? 'Alfeladatok becsukása'
+                                      : 'Alfeladatok lenyitása'
+                                  }
+                                >
+                                  <span aria-hidden="true" />
+                                </button>
                               ) : (
-                                task.displayAssigneeIds.map((userId) => (
-                                  <span className="task-assignee-chip" key={userId}>
-                                    {profileName(userId)}
-                                  </span>
-                                ))
+                                <span className="task-expand-spacer" aria-hidden="true" />
                               )}
+                              <div className="task-title-copy">
+                                <Link className="task-title-link" to={`/admin/tasks/${task.id}`}>
+                                  {task.title || 'Névtelen feladat'}
+                                </Link>
+                                {task.hasChildren && (
+                                  <span className="task-subcount">
+                                    {task.children.length} alfeladat
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                          ) : (
-                            <div className="task-assignee-picker">
-                              {adminProfiles.map((profile) => {
-                                const checked = (assigneesByTask[task.id] || []).includes(
-                                  profile.user_id,
-                                )
+                          </td>
+                          <td className="task-timing-cell">{renderTimingCell(task)}</td>
+                          <td className="task-progress-cell">
+                            {renderProgressCell(
+                              { ...task, progress: task.displayProgress },
+                              { readonly: task.hasChildren },
+                            )}
+                          </td>
+                          <td>
+                            {renderAssigneeCell(task, { readonly: task.hasChildren })}
+                          </td>
+                          <td>
+                            <button
+                              type="button"
+                              onClick={() => deleteTask(task.id)}
+                              disabled={savingTaskId === task.id}
+                            >
+                              Törlés
+                            </button>
+                          </td>
+                        </tr>,
+                      ]
 
-                                return (
-                                  <label key={profile.user_id} className="task-assignee-option">
-                                    <input
-                                      type="checkbox"
-                                      checked={checked}
-                                      disabled={savingTaskId === task.id}
-                                      onChange={() =>
-                                        toggleAssignee(task.id, profile.user_id)
-                                      }
-                                    />
-                                    <span>{profile.display_name}</span>
-                                  </label>
-                                )
-                              })}
-                            </div>
-                          )}
-                        </td>
-                        <td>
-                          <button
-                            type="button"
-                            onClick={() => deleteTask(task.id)}
-                            disabled={savingTaskId === task.id}
-                          >
-                            Törlés
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                      if (task.hasChildren && isExpanded) {
+                        task.children.forEach((child) => {
+                          rows.push(
+                            <tr key={child.id} className="task-row-child">
+                              <td>
+                                <div className="task-title-cell is-child">
+                                  <span className="task-expand-spacer" aria-hidden="true" />
+                                  <span className="task-child-title">
+                                    {child.title || 'Névtelen alfeladat'}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="task-timing-cell">{renderTimingCell(child)}</td>
+                              <td className="task-progress-cell">
+                                {renderProgressCell(child)}
+                              </td>
+                              <td>{renderAssigneeCell(child)}</td>
+                              <td />
+                            </tr>,
+                          )
+                        })
+                      }
+
+                      return rows
+                    })
                   )}
                 </tbody>
               </table>

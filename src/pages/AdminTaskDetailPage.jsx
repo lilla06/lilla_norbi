@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import {
+  DEFAULT_TASK_TIMING,
+  TASK_TIMING_OPTIONS,
+  normalizeTaskTiming,
+  taskTimingLabel,
+} from '../lib/taskTiming'
 
 function isAdmin(user) {
   return user?.app_metadata?.role === 'admin'
@@ -34,6 +40,7 @@ function createSubtask(sortOrder = 0) {
     id: createLocalId(),
     title: '',
     progress: 0,
+    timing: DEFAULT_TASK_TIMING,
     sort_order: sortOrder,
     assigneeIds: [],
     isNew: true,
@@ -46,6 +53,7 @@ function createMaterial(sortOrder = 0) {
     name: '',
     source: '',
     estimated_price: '',
+    is_acquired: false,
     sort_order: sortOrder,
     isNew: true,
   }
@@ -62,6 +70,7 @@ export default function AdminTaskDetailPage() {
   const [title, setTitle] = useState('')
   const [notes, setNotes] = useState('')
   const [progress, setProgress] = useState(0)
+  const [timing, setTiming] = useState(DEFAULT_TASK_TIMING)
   const [assigneeIds, setAssigneeIds] = useState([])
   const [subtasks, setSubtasks] = useState([])
   const [materials, setMaterials] = useState([])
@@ -94,19 +103,19 @@ export default function AdminTaskDetailPage() {
         await Promise.all([
           supabase
             .from('wedding_tasks')
-            .select('id, parent_id, title, progress, notes, sort_order')
+            .select('id, parent_id, title, progress, notes, timing, sort_order')
             .eq('id', taskId)
             .maybeSingle(),
           supabase
             .from('wedding_tasks')
-            .select('id, parent_id, title, progress, notes, sort_order')
+            .select('id, parent_id, title, progress, notes, timing, sort_order')
             .eq('parent_id', taskId)
             .order('sort_order')
             .order('created_at'),
           supabase.from('wedding_task_assignees').select('task_id, user_id'),
           supabase
             .from('wedding_task_materials')
-            .select('id, task_id, name, source, estimated_price, sort_order')
+            .select('id, task_id, name, source, estimated_price, is_acquired, sort_order')
             .eq('task_id', taskId)
             .order('sort_order')
             .order('created_at'),
@@ -151,6 +160,7 @@ export default function AdminTaskDetailPage() {
         id: child.id,
         title: child.title || '',
         progress: clampProgress(child.progress),
+        timing: normalizeTaskTiming(child.timing),
         sort_order: child.sort_order || 0,
         assigneeIds: assignees
           .filter((row) => row.task_id === child.id)
@@ -161,6 +171,7 @@ export default function AdminTaskDetailPage() {
       const nextTitle = taskResult.data.title || ''
       const nextNotes = taskResult.data.notes || ''
       const nextProgress = clampProgress(taskResult.data.progress)
+      const nextTiming = normalizeTaskTiming(taskResult.data.timing)
       const nextAssigneeIds = assignees
         .filter((row) => row.task_id === taskId)
         .map((row) => row.user_id)
@@ -172,6 +183,7 @@ export default function AdminTaskDetailPage() {
           item.estimated_price === null || item.estimated_price === undefined
             ? ''
             : String(item.estimated_price),
+        is_acquired: Boolean(item.is_acquired),
         sort_order: item.sort_order ?? index,
         isNew: false,
       }))
@@ -180,6 +192,7 @@ export default function AdminTaskDetailPage() {
       setTitle(nextTitle)
       setNotes(nextNotes)
       setProgress(nextProgress)
+      setTiming(nextTiming)
       setAssigneeIds(nextAssigneeIds)
       setSubtasks(childTasks)
       setMaterials(nextMaterials)
@@ -188,6 +201,7 @@ export default function AdminTaskDetailPage() {
           title: nextTitle,
           notes: nextNotes,
           progress: nextProgress,
+          timing: nextTiming,
           assigneeIds: nextAssigneeIds,
           subtasks: childTasks,
           materials: nextMaterials,
@@ -223,6 +237,7 @@ export default function AdminTaskDetailPage() {
         title,
         notes,
         progress,
+        timing,
         assigneeIds,
         subtasks,
         materials,
@@ -241,6 +256,7 @@ export default function AdminTaskDetailPage() {
     setTitle(savedSnapshot.title)
     setNotes(savedSnapshot.notes)
     setProgress(savedSnapshot.progress)
+    setTiming(savedSnapshot.timing)
     setAssigneeIds(savedSnapshot.assigneeIds)
     setSubtasks(cloneState(savedSnapshot.subtasks))
     setMaterials(cloneState(savedSnapshot.materials))
@@ -254,7 +270,12 @@ export default function AdminTaskDetailPage() {
         subtask.id === id
           ? {
               ...subtask,
-              [field]: field === 'progress' ? clampProgress(value) : value,
+              [field]:
+                field === 'progress'
+                  ? clampProgress(value)
+                  : field === 'timing'
+                    ? normalizeTaskTiming(value)
+                    : value,
             }
           : subtask,
       ),
@@ -318,6 +339,35 @@ export default function AdminTaskDetailPage() {
     setMaterials((current) => current.filter((material) => material.id !== id))
   }
 
+  async function toggleMaterialAcquired(material) {
+    const nextValue = !material.is_acquired
+
+    setMaterials((current) =>
+      current.map((item) =>
+        item.id === material.id ? { ...item, is_acquired: nextValue } : item,
+      ),
+    )
+    setStatusMessage('')
+
+    if (material.isNew || isEditing) {
+      return
+    }
+
+    const { error } = await supabase
+      .from('wedding_task_materials')
+      .update({ is_acquired: nextValue })
+      .eq('id', material.id)
+
+    if (error) {
+      setMaterials((current) =>
+        current.map((item) =>
+          item.id === material.id ? { ...item, is_acquired: material.is_acquired } : item,
+        ),
+      )
+      setStatusMessage(`Nem sikerült menteni a beszerzés státuszát: ${error.message}`)
+    }
+  }
+
   async function replaceAssignees(taskIdsToClear, rows) {
     if (taskIdsToClear.length) {
       const { error: deleteError } = await supabase
@@ -348,6 +398,7 @@ export default function AdminTaskDetailPage() {
         ...subtask,
         title: subtask.title.trim(),
         progress: clampProgress(subtask.progress),
+        timing: normalizeTaskTiming(subtask.timing),
         sort_order: index,
       }))
       .filter((subtask) => subtask.title || subtask.assigneeIds.length || subtask.progress > 0)
@@ -359,6 +410,7 @@ export default function AdminTaskDetailPage() {
         source: material.source.trim(),
         estimated_price:
           material.estimated_price === '' ? 0 : Number(material.estimated_price) || 0,
+        is_acquired: Boolean(material.is_acquired),
         sort_order: index,
       }))
       .filter(
@@ -372,6 +424,7 @@ export default function AdminTaskDetailPage() {
         title: trimmedTitle,
         notes: notes.trim(),
         progress: nextSubtasks.length ? 0 : clampProgress(progress),
+        timing: normalizeTaskTiming(timing),
         updated_at: new Date().toISOString(),
       })
       .eq('id', taskId)
@@ -424,10 +477,11 @@ export default function AdminTaskDetailPage() {
             parent_id: taskId,
             title: subtask.title || 'Alfeladat',
             progress: subtask.progress,
+            timing: normalizeTaskTiming(subtask.timing),
             notes: '',
             sort_order: subtask.sort_order,
           })
-          .select('id, title, progress, sort_order')
+          .select('id, title, progress, timing, sort_order')
           .single()
 
         if (error) {
@@ -440,6 +494,7 @@ export default function AdminTaskDetailPage() {
           id: data.id,
           title: data.title,
           progress: clampProgress(data.progress),
+          timing: normalizeTaskTiming(data.timing),
           sort_order: data.sort_order,
           assigneeIds: subtask.assigneeIds,
           isNew: false,
@@ -450,6 +505,7 @@ export default function AdminTaskDetailPage() {
           .update({
             title: subtask.title || 'Alfeladat',
             progress: subtask.progress,
+            timing: normalizeTaskTiming(subtask.timing),
             sort_order: subtask.sort_order,
             updated_at: new Date().toISOString(),
           })
@@ -464,6 +520,7 @@ export default function AdminTaskDetailPage() {
         savedSubtasks.push({
           ...subtask,
           title: subtask.title || 'Alfeladat',
+          timing: normalizeTaskTiming(subtask.timing),
           isNew: false,
         })
       }
@@ -514,10 +571,11 @@ export default function AdminTaskDetailPage() {
             name: material.name,
             source: material.source,
             estimated_price: material.estimated_price,
+            is_acquired: material.is_acquired,
             sort_order: material.sort_order,
           })),
         )
-        .select('id, name, source, estimated_price, sort_order')
+        .select('id, name, source, estimated_price, is_acquired, sort_order')
 
       if (error) {
         setIsSubmitting(false)
@@ -530,6 +588,7 @@ export default function AdminTaskDetailPage() {
         name: material.name || '',
         source: material.source || '',
         estimated_price: String(material.estimated_price ?? 0),
+        is_acquired: Boolean(material.is_acquired),
         sort_order: material.sort_order ?? index,
         isNew: false,
       }))
@@ -539,6 +598,7 @@ export default function AdminTaskDetailPage() {
       title: trimmedTitle,
       notes: notes.trim(),
       progress: savedSubtasks.length ? 0 : clampProgress(progress),
+      timing: normalizeTaskTiming(timing),
       assigneeIds: savedSubtasks.length ? [] : assigneeIds,
       subtasks: savedSubtasks,
       materials: savedMaterials,
@@ -547,6 +607,7 @@ export default function AdminTaskDetailPage() {
     setTitle(nextState.title)
     setNotes(nextState.notes)
     setProgress(nextState.progress)
+    setTiming(nextState.timing)
     setAssigneeIds(nextState.assigneeIds)
     setSubtasks(nextState.subtasks)
     setMaterials(nextState.materials)
@@ -639,6 +700,25 @@ export default function AdminTaskDetailPage() {
               </div>
 
               <div className="task-field">
+                <span>Mikor végezhető el</span>
+                {isEditing ? (
+                  <select
+                    className="task-timing-select"
+                    value={normalizeTaskTiming(timing)}
+                    onChange={(event) => setTiming(normalizeTaskTiming(event.target.value))}
+                  >
+                    {TASK_TIMING_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <strong>{taskTimingLabel(timing)}</strong>
+                )}
+              </div>
+
+              <div className="task-field">
                 <span>Hozzárendelve</span>
                 {hasSubtasks ? (
                   <div className="task-assignee-chips">
@@ -716,6 +796,7 @@ export default function AdminTaskDetailPage() {
                   <thead>
                     <tr>
                       <th>Alfeladat</th>
+                      <th>Mikor</th>
                       <th>Készültség</th>
                       <th>Hozzárendelve</th>
                       {isEditing && <th />}
@@ -724,7 +805,7 @@ export default function AdminTaskDetailPage() {
                   <tbody>
                     {subtasks.length === 0 ? (
                       <tr>
-                        <td colSpan={isEditing ? 4 : 3}>Még nincs alfeladat.</td>
+                        <td colSpan={isEditing ? 5 : 4}>Még nincs alfeladat.</td>
                       </tr>
                     ) : (
                       subtasks.map((subtask) => (
@@ -741,6 +822,25 @@ export default function AdminTaskDetailPage() {
                               />
                             ) : (
                               subtask.title || 'Névtelen alfeladat'
+                            )}
+                          </td>
+                          <td className="task-timing-cell">
+                            {isEditing ? (
+                              <select
+                                className="task-timing-select"
+                                value={normalizeTaskTiming(subtask.timing)}
+                                onChange={(event) =>
+                                  updateSubtask(subtask.id, 'timing', event.target.value)
+                                }
+                              >
+                                {TASK_TIMING_OPTIONS.map((option) => (
+                                  <option key={option.value} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              taskTimingLabel(subtask.timing)
                             )}
                           </td>
                           <td className="task-progress-cell">
@@ -823,6 +923,7 @@ export default function AdminTaskDetailPage() {
                 <table className="admin-table tasks-table">
                   <thead>
                     <tr>
+                      <th>Beszerezve</th>
                       <th>Alapanyag</th>
                       <th>Beszerzés</th>
                       <th>Becsült ár</th>
@@ -832,11 +933,25 @@ export default function AdminTaskDetailPage() {
                   <tbody>
                     {materials.length === 0 ? (
                       <tr>
-                        <td colSpan={isEditing ? 4 : 3}>Még nincs alapanyag.</td>
+                        <td colSpan={isEditing ? 5 : 4}>Még nincs alapanyag.</td>
                       </tr>
                     ) : (
                       materials.map((material) => (
-                        <tr key={material.id}>
+                        <tr
+                          key={material.id}
+                          className={material.is_acquired ? 'material-row-acquired' : ''}
+                        >
+                          <td className="material-acquired-cell">
+                            <label className="material-acquired-option">
+                              <input
+                                type="checkbox"
+                                checked={Boolean(material.is_acquired)}
+                                onChange={() => toggleMaterialAcquired(material)}
+                                aria-label={`${material.name || 'Alapanyag'} beszerezve`}
+                              />
+                              <span>{material.is_acquired ? 'Igen' : 'Nem'}</span>
+                            </label>
+                          </td>
                           <td>
                             {isEditing ? (
                               <input
