@@ -52,6 +52,8 @@ export default function AdminTasksPage() {
   const [savingTaskId, setSavingTaskId] = useState(null)
   const [isCreating, setIsCreating] = useState(false)
   const [expandedTaskIds, setExpandedTaskIds] = useState(() => new Set())
+  // Szurt nezetben a talalatok alapbol nyitva vannak, itt csak a kezzel becsukottakat tartjuk
+  const [collapsedFilteredTaskIds, setCollapsedFilteredTaskIds] = useState(() => new Set())
   const [timingSortDirection, setTimingSortDirection] = useState('anytime-to-wedding')
   const [assigneeFilter, setAssigneeFilter] = useState('all')
 
@@ -226,8 +228,19 @@ export default function AdminTasksPage() {
     return adminProfiles.find((profile) => profile.user_id === userId)?.display_name || 'Admin'
   }
 
+  function isTaskOpen(taskId) {
+    if (assigneeFilter === 'all') {
+      return expandedTaskIds.has(taskId)
+    }
+
+    return !collapsedFilteredTaskIds.has(taskId)
+  }
+
   function toggleExpanded(taskId) {
-    setExpandedTaskIds((current) => {
+    const setter =
+      assigneeFilter === 'all' ? setExpandedTaskIds : setCollapsedFilteredTaskIds
+
+    setter((current) => {
       const next = new Set(current)
 
       if (next.has(taskId)) {
@@ -557,15 +570,13 @@ export default function AdminTasksPage() {
                     </tr>
                   ) : (
                     filteredTopLevelTasks.flatMap((task) => {
-                      const isExpanded = expandedTaskIds.has(task.id)
+                      const isExpanded = isTaskOpen(task.id)
                       const visibleChildren =
                         assigneeFilter === 'all'
                           ? task.children
                           : task.children.filter(childMatchesFilter)
                       const showChildren =
-                        task.hasChildren &&
-                        visibleChildren.length > 0 &&
-                        (isExpanded || assigneeFilter !== 'all')
+                        task.hasChildren && visibleChildren.length > 0 && isExpanded
 
                       const rows = [
                         <tr key={task.id} className={task.hasChildren ? 'task-row-parent' : ''}>
@@ -574,17 +585,14 @@ export default function AdminTasksPage() {
                               {task.hasChildren ? (
                                 <button
                                   type="button"
-                                  className={`task-expand-toggle ${
-                                    isExpanded || assigneeFilter !== 'all' ? 'is-open' : ''
-                                  }`}
+                                  className={`task-expand-toggle ${isExpanded ? 'is-open' : ''}`}
                                   onClick={() => toggleExpanded(task.id)}
-                                  aria-expanded={isExpanded || assigneeFilter !== 'all'}
+                                  aria-expanded={isExpanded}
                                   aria-label={
-                                    isExpanded || assigneeFilter !== 'all'
+                                    isExpanded
                                       ? 'Alfeladatok becsukása'
                                       : 'Alfeladatok lenyitása'
                                   }
-                                  disabled={assigneeFilter !== 'all'}
                                 >
                                   <span aria-hidden="true" />
                                 </button>
