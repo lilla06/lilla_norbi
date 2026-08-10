@@ -52,7 +52,7 @@ export default function AdminTasksPage() {
   const [savingTaskId, setSavingTaskId] = useState(null)
   const [isCreating, setIsCreating] = useState(false)
   const [expandedTaskIds, setExpandedTaskIds] = useState(() => new Set())
-  const [timingSortDirection, setTimingSortDirection] = useState('wedding-to-anytime')
+  const [timingSortDirection, setTimingSortDirection] = useState('anytime-to-wedding')
 
   useEffect(() => {
     async function loadTasks() {
