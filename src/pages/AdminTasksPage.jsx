@@ -56,6 +56,7 @@ export default function AdminTasksPage() {
   const [collapsedFilteredTaskIds, setCollapsedFilteredTaskIds] = useState(() => new Set())
   const [timingSortDirection, setTimingSortDirection] = useState('anytime-to-wedding')
   const [assigneeFilter, setAssigneeFilter] = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     async function loadTasks() {
@@ -174,6 +175,17 @@ export default function AdminTasksPage() {
       })
   }, [tasks, assigneesByTask, timingSortDirection])
 
+  const normalizedSearch = searchQuery.trim().toLocaleLowerCase('hu')
+  const hasActiveListFilter = assigneeFilter !== 'all' || Boolean(normalizedSearch)
+
+  function matchesSearch(title) {
+    if (!normalizedSearch) {
+      return true
+    }
+
+    return (title || '').toLocaleLowerCase('hu').includes(normalizedSearch)
+  }
+
   function matchesAssigneeFilter(assigneeIds) {
     if (assigneeFilter === 'all') {
       return true
@@ -193,6 +205,10 @@ export default function AdminTasksPage() {
 
   function childMatchesFilter(child) {
     return matchesAssigneeFilter(assigneesByTask[child.id] || [])
+  }
+
+  function childMatchesSearch(child) {
+    return matchesSearch(child.title)
   }
 
   function topLevelMatchesFilter(task) {
@@ -216,20 +232,32 @@ export default function AdminTasksPage() {
     return matchesAssigneeFilter(task.displayAssigneeIds)
   }
 
-  const filteredTopLevelTasks = useMemo(() => {
-    if (assigneeFilter === 'all') {
-      return topLevelTasks
+  function topLevelMatchesSearch(task) {
+    if (!normalizedSearch) {
+      return true
     }
 
-    return topLevelTasks.filter(topLevelMatchesFilter)
-  }, [topLevelTasks, assigneeFilter, assigneesByTask])
+    if (matchesSearch(task.title)) {
+      return true
+    }
+
+    return task.children.some(
+      (child) => childMatchesSearch(child) && childMatchesFilter(child),
+    )
+  }
+
+  const filteredTopLevelTasks = useMemo(() => {
+    return topLevelTasks.filter(
+      (task) => topLevelMatchesFilter(task) && topLevelMatchesSearch(task),
+    )
+  }, [topLevelTasks, assigneeFilter, assigneesByTask, normalizedSearch])
 
   function profileName(userId) {
     return adminProfiles.find((profile) => profile.user_id === userId)?.display_name || 'Admin'
   }
 
   function isTaskOpen(taskId) {
-    if (assigneeFilter === 'all') {
+    if (!hasActiveListFilter) {
       return expandedTaskIds.has(taskId)
     }
 
@@ -237,8 +265,7 @@ export default function AdminTasksPage() {
   }
 
   function toggleExpanded(taskId) {
-    const setter =
-      assigneeFilter === 'all' ? setExpandedTaskIds : setCollapsedFilteredTaskIds
+    const setter = hasActiveListFilter ? setCollapsedFilteredTaskIds : setExpandedTaskIds
 
     setter((current) => {
       const next = new Set(current)
@@ -480,6 +507,16 @@ export default function AdminTasksPage() {
               <button type="button" onClick={createTask} disabled={isCreating}>
                 {isCreating ? 'Létrehozás...' : 'Új feladat'}
               </button>
+              <label className="task-search-field">
+                <span>Keresés</span>
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Feladat neve..."
+                  aria-label="Keresés a feladat nevére"
+                />
+              </label>
               <div className="task-filter-controls" role="group" aria-label="Szűrés felelős szerint">
                 <span>Felelős:</span>
                 <button
@@ -565,16 +602,23 @@ export default function AdminTasksPage() {
                       <td colSpan="5">
                         {topLevelTasks.length === 0
                           ? 'Még nincs feladat. Hozz létre egyet az Új feladat gombbal.'
-                          : 'Nincs a szűrőnek megfelelő feladat.'}
+                          : normalizedSearch
+                            ? 'Nincs a keresésnek megfelelő feladat.'
+                            : 'Nincs a szűrőnek megfelelő feladat.'}
                       </td>
                     </tr>
                   ) : (
                     filteredTopLevelTasks.flatMap((task) => {
                       const isExpanded = isTaskOpen(task.id)
-                      const visibleChildren =
+                      let visibleChildren =
                         assigneeFilter === 'all'
                           ? task.children
                           : task.children.filter(childMatchesFilter)
+
+                      if (normalizedSearch && !matchesSearch(task.title)) {
+                        visibleChildren = visibleChildren.filter(childMatchesSearch)
+                      }
+
                       const showChildren =
                         task.hasChildren && visibleChildren.length > 0 && isExpanded
 

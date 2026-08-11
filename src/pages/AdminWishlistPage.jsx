@@ -20,6 +20,7 @@ export default function AdminWishlistPage() {
   const [isCreating, setIsCreating] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
   const [taskFilter, setTaskFilter] = useState('all')
+  const [acquiredFilter, setAcquiredFilter] = useState('all')
 
   useEffect(() => {
     async function loadWishlist() {
@@ -81,16 +82,26 @@ export default function AdminWishlistPage() {
   }, [navigate])
 
   const filteredMaterials = useMemo(() => {
-    if (taskFilter === 'assigned') {
-      return materials.filter((item) => Boolean(item.task_id))
-    }
+    return materials.filter((item) => {
+      if (taskFilter === 'assigned' && !item.task_id) {
+        return false
+      }
 
-    if (taskFilter === 'unassigned') {
-      return materials.filter((item) => !item.task_id)
-    }
+      if (taskFilter === 'unassigned' && item.task_id) {
+        return false
+      }
 
-    return materials
-  }, [materials, taskFilter])
+      if (acquiredFilter === 'acquired' && !item.is_acquired) {
+        return false
+      }
+
+      if (acquiredFilter === 'not_acquired' && item.is_acquired) {
+        return false
+      }
+
+      return true
+    })
+  }, [materials, taskFilter, acquiredFilter])
 
   async function createMaterial() {
     setIsCreating(true)
@@ -198,6 +209,34 @@ export default function AdminWishlistPage() {
                   onClick={() => setTaskFilter('unassigned')}
                 >
                   Nincs feladathoz rendelve
+                </button>
+              </div>
+              <div
+                className="task-filter-controls"
+                role="group"
+                aria-label="Szűrés beszerzés szerint"
+              >
+                <span>Beszerzés:</span>
+                <button
+                  type="button"
+                  className={acquiredFilter === 'all' ? 'is-active' : ''}
+                  onClick={() => setAcquiredFilter('all')}
+                >
+                  Összes
+                </button>
+                <button
+                  type="button"
+                  className={acquiredFilter === 'acquired' ? 'is-active' : ''}
+                  onClick={() => setAcquiredFilter('acquired')}
+                >
+                  Beszerezve
+                </button>
+                <button
+                  type="button"
+                  className={acquiredFilter === 'not_acquired' ? 'is-active' : ''}
+                  onClick={() => setAcquiredFilter('not_acquired')}
+                >
+                  Nincs beszerezve
                 </button>
               </div>
             </div>

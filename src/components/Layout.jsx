@@ -48,6 +48,10 @@ export default function Layout({ children }) {
   }, [])
 
   useEffect(() => {
+    setIsAdminMenuOpen(isAdmin(user))
+  }, [user?.id, user?.app_metadata?.role])
+
+  useEffect(() => {
     if (!location.hash) {
       return
     }
@@ -59,7 +63,6 @@ export default function Layout({ children }) {
 
   function closeMenu() {
     setIsMenuOpen(false)
-    setIsAdminMenuOpen(false)
   }
 
   function navigateFromMenu(path) {
