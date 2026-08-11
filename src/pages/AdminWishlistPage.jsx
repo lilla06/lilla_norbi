@@ -80,24 +80,16 @@ export default function AdminWishlistPage() {
     loadWishlist()
   }, [navigate])
 
-  const taskOptions = useMemo(
-    () =>
-      Object.values(tasksById).sort((a, b) =>
-        (a.title || '').localeCompare(b.title || '', 'hu'),
-      ),
-    [tasksById],
-  )
-
   const filteredMaterials = useMemo(() => {
-    if (taskFilter === 'all') {
-      return materials
+    if (taskFilter === 'assigned') {
+      return materials.filter((item) => Boolean(item.task_id))
     }
 
     if (taskFilter === 'unassigned') {
       return materials.filter((item) => !item.task_id)
     }
 
-    return materials.filter((item) => item.task_id === taskFilter)
+    return materials
   }, [materials, taskFilter])
 
   async function createMaterial() {
@@ -111,7 +103,7 @@ export default function AdminWishlistPage() {
       .from('wedding_task_materials')
       .insert({
         task_id: null,
-        name: 'Új alapanyag',
+        name: 'Új tétel',
         source: '',
         estimated_price: 0,
         is_acquired: false,
@@ -182,7 +174,7 @@ export default function AdminWishlistPage() {
           <>
             <div className="admin-actions task-list-toolbar">
               <button type="button" onClick={createMaterial} disabled={isCreating}>
-                {isCreating ? 'Létrehozás...' : 'Új alapanyag'}
+                {isCreating ? 'Létrehozás...' : 'Új tétel'}
               </button>
               <div className="task-filter-controls" role="group" aria-label="Szűrés feladat szerint">
                 <span>Feladat:</span>
@@ -195,21 +187,18 @@ export default function AdminWishlistPage() {
                 </button>
                 <button
                   type="button"
+                  className={taskFilter === 'assigned' ? 'is-active' : ''}
+                  onClick={() => setTaskFilter('assigned')}
+                >
+                  Feladathoz rendelve
+                </button>
+                <button
+                  type="button"
                   className={taskFilter === 'unassigned' ? 'is-active' : ''}
                   onClick={() => setTaskFilter('unassigned')}
                 >
                   Nincs feladathoz rendelve
                 </button>
-                {taskOptions.map((task) => (
-                  <button
-                    key={task.id}
-                    type="button"
-                    className={taskFilter === task.id ? 'is-active' : ''}
-                    onClick={() => setTaskFilter(task.id)}
-                  >
-                    {task.title || 'Névtelen feladat'}
-                  </button>
-                ))}
               </div>
             </div>
 
@@ -230,8 +219,8 @@ export default function AdminWishlistPage() {
                     <tr>
                       <td colSpan="6">
                         {materials.length === 0
-                          ? 'Még nincs alapanyag. Hozz létre egyet az Új alapanyag gombbal.'
-                          : 'Nincs a szűrőnek megfelelő alapanyag.'}
+                          ? 'Még nincs tétel. Hozz létre egyet az Új tétel gombbal.'
+                          : 'Nincs a szűrőnek megfelelő tétel.'}
                       </td>
                     </tr>
                   ) : (
