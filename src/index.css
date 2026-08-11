@@ -2052,6 +2052,31 @@ p {
   font-size: 12px;
 }
 
+.task-detail-actions {
+  align-items: center;
+}
+
+.task-autosave-status {
+  margin: 0;
+  margin-right: auto;
+  color: var(--brown);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+
+.task-autosave-status.is-saving {
+  color: var(--brown-deep);
+}
+
+.task-autosave-status.is-saved {
+  color: var(--forest);
+}
+
+.task-autosave-status.is-error {
+  color: #8a2f2f;
+}
+
 .task-detail-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

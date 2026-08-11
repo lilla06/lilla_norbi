@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import {
   DEFAULT_TASK_TIMING,
   TASK_TIMING_OPTIONS,
   normalizeTaskTiming,
-  taskTimingLabel,
 } from '../lib/taskTiming'
+
+const AUTOSAVE_DELAY_MS = 650
 
 function isAdmin(user) {
   return user?.app_metadata?.role === 'admin'
@@ -31,36 +32,13 @@ function averageProgress(items) {
   return Math.round(total / items.length)
 }
 
-function createLocalId() {
-  return crypto.randomUUID()
-}
-
-function createSubtask(sortOrder = 0) {
-  return {
-    id: createLocalId(),
-    title: '',
-    progress: 0,
-    timing: DEFAULT_TASK_TIMING,
-    sort_order: sortOrder,
-    assigneeIds: [],
-    isNew: true,
+function parsePrice(value) {
+  if (value === '' || value === null || value === undefined) {
+    return 0
   }
-}
 
-function createMaterial(sortOrder = 0) {
-  return {
-    id: createLocalId(),
-    name: '',
-    source: '',
-    estimated_price: '',
-    is_acquired: false,
-    sort_order: sortOrder,
-    isNew: true,
-  }
-}
-
-function cloneState(value) {
-  return JSON.parse(JSON.stringify(value))
+  const number = Number(value)
+  return Number.isFinite(number) ? number : 0
 }
 
 export default function AdminTaskDetailPage() {
@@ -74,14 +52,49 @@ export default function AdminTaskDetailPage() {
   const [assigneeIds, setAssigneeIds] = useState([])
   const [subtasks, setSubtasks] = useState([])
   const [materials, setMaterials] = useState([])
-  const [savedSnapshot, setSavedSnapshot] = useState(null)
-  const [isEditing, setIsEditing] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
-  const [isSubmitting, setIsSubmitting] = useState(false)
   const [hasAccess, setHasAccess] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
+  const [saveState, setSaveState] = useState('idle')
+  const [busyAction, setBusyAction] = useState(null)
+  const [isManualSaving, setIsManualSaving] = useState(false)
+
+  const readyRef = useRef(false)
+  const timersRef = useRef({})
+  const saveCountRef = useRef(0)
+  const draftRef = useRef({
+    title: '',
+    notes: '',
+    progress: 0,
+    timing: DEFAULT_TASK_TIMING,
+    assigneeIds: [],
+    subtasks: [],
+    materials: [],
+    hasSubtasks: false,
+  })
 
   useEffect(() => {
+    draftRef.current = {
+      title,
+      notes,
+      progress,
+      timing,
+      assigneeIds,
+      subtasks,
+      materials,
+      hasSubtasks: subtasks.length > 0,
+    }
+  }, [title, notes, progress, timing, assigneeIds, subtasks, materials])
+
+  useEffect(() => {
+    return () => {
+      Object.values(timersRef.current).forEach((timer) => clearTimeout(timer))
+    }
+  }, [])
+
+  useEffect(() => {
+    readyRef.current = false
+
     async function loadTask() {
       const { data: userData } = await supabase.auth.getUser()
       const user = userData.user
@@ -165,49 +178,34 @@ export default function AdminTaskDetailPage() {
         assigneeIds: assignees
           .filter((row) => row.task_id === child.id)
           .map((row) => row.user_id),
-        isNew: false,
-      }))
-
-      const nextTitle = taskResult.data.title || ''
-      const nextNotes = taskResult.data.notes || ''
-      const nextProgress = clampProgress(taskResult.data.progress)
-      const nextTiming = normalizeTaskTiming(taskResult.data.timing)
-      const nextAssigneeIds = assignees
-        .filter((row) => row.task_id === taskId)
-        .map((row) => row.user_id)
-      const nextMaterials = (materialsResult.data || []).map((item, index) => ({
-        id: item.id,
-        name: item.name || '',
-        source: item.source || '',
-        estimated_price:
-          item.estimated_price === null || item.estimated_price === undefined
-            ? ''
-            : String(item.estimated_price),
-        is_acquired: Boolean(item.is_acquired),
-        sort_order: item.sort_order ?? index,
-        isNew: false,
       }))
 
       setAdminProfiles(profilesResult.data || [])
-      setTitle(nextTitle)
-      setNotes(nextNotes)
-      setProgress(nextProgress)
-      setTiming(nextTiming)
-      setAssigneeIds(nextAssigneeIds)
-      setSubtasks(childTasks)
-      setMaterials(nextMaterials)
-      setSavedSnapshot(
-        cloneState({
-          title: nextTitle,
-          notes: nextNotes,
-          progress: nextProgress,
-          timing: nextTiming,
-          assigneeIds: nextAssigneeIds,
-          subtasks: childTasks,
-          materials: nextMaterials,
-        }),
+      setTitle(taskResult.data.title || '')
+      setNotes(taskResult.data.notes || '')
+      setProgress(clampProgress(taskResult.data.progress))
+      setTiming(normalizeTaskTiming(taskResult.data.timing))
+      setAssigneeIds(
+        assignees.filter((row) => row.task_id === taskId).map((row) => row.user_id),
       )
+      setSubtasks(childTasks)
+      setMaterials(
+        (materialsResult.data || []).map((item, index) => ({
+          id: item.id,
+          name: item.name || '',
+          source: item.source || '',
+          estimated_price:
+            item.estimated_price === null || item.estimated_price === undefined
+              ? ''
+              : String(item.estimated_price),
+          is_acquired: Boolean(item.is_acquired),
+          sort_order: item.sort_order ?? index,
+        })),
+      )
+      setStatusMessage('')
+      setSaveState('idle')
       setIsLoading(false)
+      readyRef.current = true
     }
 
     loadTask()
@@ -231,65 +229,277 @@ export default function AdminTaskDetailPage() {
     return adminProfiles.find((profile) => profile.user_id === userId)?.display_name || 'Admin'
   }
 
-  function startEditing() {
-    setSavedSnapshot(
-      cloneState({
-        title,
-        notes,
-        progress,
-        timing,
-        assigneeIds,
-        subtasks,
-        materials,
-      }),
-    )
-    setStatusMessage('')
-    setIsEditing(true)
+  function beginSave() {
+    saveCountRef.current += 1
+    setSaveState('saving')
   }
 
-  function discardChanges() {
-    if (!savedSnapshot) {
-      setIsEditing(false)
+  function endSave(errorMessage) {
+    saveCountRef.current = Math.max(0, saveCountRef.current - 1)
+
+    if (errorMessage) {
+      setStatusMessage(errorMessage)
+      setSaveState('error')
       return
     }
 
-    setTitle(savedSnapshot.title)
-    setNotes(savedSnapshot.notes)
-    setProgress(savedSnapshot.progress)
-    setTiming(savedSnapshot.timing)
-    setAssigneeIds(savedSnapshot.assigneeIds)
-    setSubtasks(cloneState(savedSnapshot.subtasks))
-    setMaterials(cloneState(savedSnapshot.materials))
-    setStatusMessage('')
-    setIsEditing(false)
+    if (saveCountRef.current === 0) {
+      setStatusMessage('')
+      setSaveState('saved')
+    }
+  }
+
+  function scheduleSave(key, action) {
+    if (!readyRef.current) {
+      return
+    }
+
+    if (timersRef.current[key]) {
+      clearTimeout(timersRef.current[key])
+    }
+
+    timersRef.current[key] = setTimeout(async () => {
+      delete timersRef.current[key]
+      beginSave()
+
+      try {
+        const errorMessage = await action()
+        endSave(errorMessage || null)
+      } catch (error) {
+        endSave(error?.message || 'Ismeretlen mentési hiba.')
+      }
+    }, AUTOSAVE_DELAY_MS)
+  }
+
+  async function runImmediate(action, busyKey = null) {
+    if (!readyRef.current) {
+      return
+    }
+
+    if (busyKey) {
+      setBusyAction(busyKey)
+    }
+
+    beginSave()
+
+    try {
+      const errorMessage = await action()
+      endSave(errorMessage || null)
+    } catch (error) {
+      endSave(error?.message || 'Ismeretlen mentési hiba.')
+    }
+
+    if (busyKey) {
+      setBusyAction(null)
+    }
+  }
+
+  function persistParentFields() {
+    scheduleSave('parent', writeParentFields)
+  }
+
+  async function writeParentFields() {
+    const draft = draftRef.current
+    const { error } = await supabase
+      .from('wedding_tasks')
+      .update({
+        title: draft.title.trim() || 'Névtelen feladat',
+        notes: draft.notes.trim(),
+        progress: draft.hasSubtasks ? 0 : clampProgress(draft.progress),
+        timing: normalizeTaskTiming(draft.timing),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', taskId)
+
+    return error ? `Nem sikerült menteni a feladatot: ${error.message}` : null
+  }
+
+  async function writeSubtask(subtaskId) {
+    const current = draftRef.current.subtasks.find((item) => item.id === subtaskId)
+    if (!current) {
+      return null
+    }
+
+    const { error } = await supabase
+      .from('wedding_tasks')
+      .update({
+        title: current.title.trim() || 'Alfeladat',
+        progress: clampProgress(current.progress),
+        timing: normalizeTaskTiming(current.timing),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', subtaskId)
+
+    return error ? `Nem sikerült menteni az alfeladatot: ${error.message}` : null
+  }
+
+  async function writeMaterial(materialId) {
+    const current = draftRef.current.materials.find((item) => item.id === materialId)
+    if (!current) {
+      return null
+    }
+
+    const { error } = await supabase
+      .from('wedding_task_materials')
+      .update({
+        name: current.name.trim(),
+        source: current.source.trim(),
+        estimated_price: parsePrice(current.estimated_price),
+        is_acquired: Boolean(current.is_acquired),
+      })
+      .eq('id', materialId)
+
+    return error ? `Nem sikerült menteni az alapanyagot: ${error.message}` : null
+  }
+
+  async function saveNow() {
+    if (!readyRef.current) {
+      return
+    }
+
+    Object.values(timersRef.current).forEach((timer) => clearTimeout(timer))
+    timersRef.current = {}
+
+    setIsManualSaving(true)
+    beginSave()
+
+    try {
+      const errors = []
+      const parentError = await writeParentFields()
+      if (parentError) {
+        errors.push(parentError)
+      }
+
+      for (const subtask of draftRef.current.subtasks) {
+        const error = await writeSubtask(subtask.id)
+        if (error) {
+          errors.push(error)
+        }
+      }
+
+      for (const material of draftRef.current.materials) {
+        const error = await writeMaterial(material.id)
+        if (error) {
+          errors.push(error)
+        }
+      }
+
+      endSave(errors[0] || null)
+    } catch (error) {
+      endSave(error?.message || 'Ismeretlen mentési hiba.')
+    }
+
+    setIsManualSaving(false)
+  }
+
+  function handleTitleChange(value) {
+    setTitle(value)
+    draftRef.current = { ...draftRef.current, title: value }
+    persistParentFields()
+  }
+
+  function handleNotesChange(value) {
+    setNotes(value)
+    draftRef.current = { ...draftRef.current, notes: value }
+    persistParentFields()
+  }
+
+  function handleProgressChange(value) {
+    const nextProgress = clampProgress(value)
+    setProgress(nextProgress)
+    draftRef.current = { ...draftRef.current, progress: nextProgress }
+    persistParentFields()
+  }
+
+  function handleTimingChange(value) {
+    const nextTiming = normalizeTaskTiming(value)
+    setTiming(nextTiming)
+    draftRef.current = { ...draftRef.current, timing: nextTiming }
+    persistParentFields()
+  }
+
+  function toggleParentAssignee(userId) {
+    const isAssigned = assigneeIds.includes(userId)
+    const previous = assigneeIds
+    const nextIds = isAssigned
+      ? assigneeIds.filter((id) => id !== userId)
+      : [...assigneeIds, userId]
+
+    setAssigneeIds(nextIds)
+
+    runImmediate(async () => {
+      if (isAssigned) {
+        const { error } = await supabase
+          .from('wedding_task_assignees')
+          .delete()
+          .eq('task_id', taskId)
+          .eq('user_id', userId)
+
+        if (error) {
+          setAssigneeIds(previous)
+          return `Nem sikerült módosítani a hozzárendelést: ${error.message}`
+        }
+
+        return null
+      }
+
+      const { error } = await supabase
+        .from('wedding_task_assignees')
+        .insert({ task_id: taskId, user_id: userId })
+
+      if (error) {
+        setAssigneeIds(previous)
+        return `Nem sikerült módosítani a hozzárendelést: ${error.message}`
+      }
+
+      return null
+    })
+  }
+
+  function persistSubtask(subtaskId) {
+    scheduleSave(`subtask:${subtaskId}`, () => writeSubtask(subtaskId))
   }
 
   function updateSubtask(id, field, value) {
-    setSubtasks((current) =>
-      current.map((subtask) =>
+    const normalized =
+      field === 'progress'
+        ? clampProgress(value)
+        : field === 'timing'
+          ? normalizeTaskTiming(value)
+          : value
+
+    setSubtasks((current) => {
+      const next = current.map((subtask) =>
         subtask.id === id
           ? {
               ...subtask,
-              [field]:
-                field === 'progress'
-                  ? clampProgress(value)
-                  : field === 'timing'
-                    ? normalizeTaskTiming(value)
-                    : value,
+              [field]: normalized,
             }
           : subtask,
-      ),
-    )
+      )
+      draftRef.current = {
+        ...draftRef.current,
+        subtasks: next,
+        hasSubtasks: next.length > 0,
+      }
+      return next
+    })
+
+    persistSubtask(id)
   }
 
   function toggleSubtaskAssignee(subtaskId, userId) {
+    let previousAssignees = []
+    let isAssigned = false
+
     setSubtasks((current) =>
       current.map((subtask) => {
         if (subtask.id !== subtaskId) {
           return subtask
         }
 
-        const isAssigned = subtask.assigneeIds.includes(userId)
+        previousAssignees = subtask.assigneeIds
+        isAssigned = subtask.assigneeIds.includes(userId)
 
         return {
           ...subtask,
@@ -299,323 +509,230 @@ export default function AdminTaskDetailPage() {
         }
       }),
     )
+
+    runImmediate(async () => {
+      if (isAssigned) {
+        const { error } = await supabase
+          .from('wedding_task_assignees')
+          .delete()
+          .eq('task_id', subtaskId)
+          .eq('user_id', userId)
+
+        if (error) {
+          setSubtasks((current) =>
+            current.map((subtask) =>
+              subtask.id === subtaskId
+                ? { ...subtask, assigneeIds: previousAssignees }
+                : subtask,
+            ),
+          )
+          return `Nem sikerült módosítani a hozzárendelést: ${error.message}`
+        }
+
+        return null
+      }
+
+      const { error } = await supabase
+        .from('wedding_task_assignees')
+        .insert({ task_id: subtaskId, user_id: userId })
+
+      if (error) {
+        setSubtasks((current) =>
+          current.map((subtask) =>
+            subtask.id === subtaskId
+              ? { ...subtask, assigneeIds: previousAssignees }
+              : subtask,
+          ),
+        )
+        return `Nem sikerült módosítani a hozzárendelést: ${error.message}`
+      }
+
+      return null
+    })
   }
 
-  function toggleParentAssignee(userId) {
-    setAssigneeIds((current) =>
-      current.includes(userId)
-        ? current.filter((id) => id !== userId)
-        : [...current, userId],
-    )
-  }
+  async function addSubtask() {
+    const sortOrder =
+      subtasks.reduce((max, item) => Math.max(max, item.sort_order || 0), 0) + 1
 
-  function addSubtask() {
-    setSubtasks((current) => [
-      ...current,
-      createSubtask(current.reduce((max, item) => Math.max(max, item.sort_order || 0), 0) + 1),
-    ])
+    await runImmediate(async () => {
+      const { data, error } = await supabase
+        .from('wedding_tasks')
+        .insert({
+          parent_id: taskId,
+          title: 'Új alfeladat',
+          progress: 0,
+          notes: '',
+          timing: DEFAULT_TASK_TIMING,
+          sort_order: sortOrder,
+        })
+        .select('id, title, progress, timing, sort_order')
+        .single()
+
+      if (error) {
+        return `Nem sikerült létrehozni az alfeladatot: ${error.message}`
+      }
+
+      setSubtasks((current) => [
+        ...current,
+        {
+          id: data.id,
+          title: data.title || '',
+          progress: clampProgress(data.progress),
+          timing: normalizeTaskTiming(data.timing),
+          sort_order: data.sort_order || sortOrder,
+          assigneeIds: [],
+        },
+      ])
+
+      // Ha eddig nem voltak alfeladatok, a szülő progresszét nullázzuk (átlagra vált)
+      if (subtasks.length === 0) {
+        await supabase
+          .from('wedding_tasks')
+          .update({ progress: 0, updated_at: new Date().toISOString() })
+          .eq('id', taskId)
+      }
+
+      return null
+    }, 'add-subtask')
   }
 
   function removeSubtask(id) {
+    const previous = subtasks
     setSubtasks((current) => current.filter((subtask) => subtask.id !== id))
+
+    if (timersRef.current[`subtask:${id}`]) {
+      clearTimeout(timersRef.current[`subtask:${id}`])
+      delete timersRef.current[`subtask:${id}`]
+    }
+
+    runImmediate(async () => {
+      const { error } = await supabase.from('wedding_tasks').delete().eq('id', id)
+
+      if (error) {
+        setSubtasks(previous)
+        return `Nem sikerült törölni az alfeladatot: ${error.message}`
+      }
+
+      return null
+    }, `remove-subtask:${id}`)
+  }
+
+  function persistMaterial(materialId) {
+    scheduleSave(`material:${materialId}`, () => writeMaterial(materialId))
   }
 
   function updateMaterial(id, field, value) {
-    setMaterials((current) =>
-      current.map((material) =>
+    setMaterials((current) => {
+      const next = current.map((material) =>
         material.id === id ? { ...material, [field]: value } : material,
-      ),
-    )
+      )
+      draftRef.current = { ...draftRef.current, materials: next }
+      return next
+    })
+
+    persistMaterial(id)
   }
 
-  function addMaterial() {
-    setMaterials((current) => [
-      ...current,
-      createMaterial(current.reduce((max, item) => Math.max(max, item.sort_order || 0), 0) + 1),
-    ])
+  async function addMaterial() {
+    const sortOrder =
+      materials.reduce((max, item) => Math.max(max, item.sort_order || 0), 0) + 1
+
+    await runImmediate(async () => {
+      const { data, error } = await supabase
+        .from('wedding_task_materials')
+        .insert({
+          task_id: taskId,
+          name: '',
+          source: '',
+          estimated_price: 0,
+          is_acquired: false,
+          sort_order: sortOrder,
+        })
+        .select('id, name, source, estimated_price, is_acquired, sort_order')
+        .single()
+
+      if (error) {
+        return `Nem sikerült létrehozni az alapanyagot: ${error.message}`
+      }
+
+      setMaterials((current) => [
+        ...current,
+        {
+          id: data.id,
+          name: data.name || '',
+          source: data.source || '',
+          estimated_price:
+            data.estimated_price === null || data.estimated_price === undefined
+              ? ''
+              : String(data.estimated_price),
+          is_acquired: Boolean(data.is_acquired),
+          sort_order: data.sort_order || sortOrder,
+        },
+      ])
+
+      return null
+    }, 'add-material')
   }
 
   function removeMaterial(id) {
+    const previous = materials
     setMaterials((current) => current.filter((material) => material.id !== id))
+
+    if (timersRef.current[`material:${id}`]) {
+      clearTimeout(timersRef.current[`material:${id}`])
+      delete timersRef.current[`material:${id}`]
+    }
+
+    runImmediate(async () => {
+      const { error } = await supabase.from('wedding_task_materials').delete().eq('id', id)
+
+      if (error) {
+        setMaterials(previous)
+        return `Nem sikerült törölni az alapanyagot: ${error.message}`
+      }
+
+      return null
+    }, `remove-material:${id}`)
   }
 
-  async function toggleMaterialAcquired(material) {
+  function toggleMaterialAcquired(material) {
     const nextValue = !material.is_acquired
+    const previousValue = material.is_acquired
 
     setMaterials((current) =>
       current.map((item) =>
         item.id === material.id ? { ...item, is_acquired: nextValue } : item,
       ),
     )
-    setStatusMessage('')
 
-    if (material.isNew || isEditing) {
-      return
-    }
-
-    const { error } = await supabase
-      .from('wedding_task_materials')
-      .update({ is_acquired: nextValue })
-      .eq('id', material.id)
-
-    if (error) {
-      setMaterials((current) =>
-        current.map((item) =>
-          item.id === material.id ? { ...item, is_acquired: material.is_acquired } : item,
-        ),
-      )
-      setStatusMessage(`Nem sikerült menteni a beszerzés státuszát: ${error.message}`)
-    }
-  }
-
-  async function replaceAssignees(taskIdsToClear, rows) {
-    if (taskIdsToClear.length) {
-      const { error: deleteError } = await supabase
-        .from('wedding_task_assignees')
-        .delete()
-        .in('task_id', taskIdsToClear)
-
-      if (deleteError) {
-        return deleteError
-      }
-    }
-
-    if (!rows.length) {
-      return null
-    }
-
-    const { error } = await supabase.from('wedding_task_assignees').insert(rows)
-    return error
-  }
-
-  async function saveChanges() {
-    setStatusMessage('')
-    setIsSubmitting(true)
-
-    const trimmedTitle = title.trim() || 'Névtelen feladat'
-    const nextSubtasks = subtasks
-      .map((subtask, index) => ({
-        ...subtask,
-        title: subtask.title.trim(),
-        progress: clampProgress(subtask.progress),
-        timing: normalizeTaskTiming(subtask.timing),
-        sort_order: index,
-      }))
-      .filter((subtask) => subtask.title || subtask.assigneeIds.length || subtask.progress > 0)
-
-    const nextMaterials = materials
-      .map((material, index) => ({
-        ...material,
-        name: material.name.trim(),
-        source: material.source.trim(),
-        estimated_price:
-          material.estimated_price === '' ? 0 : Number(material.estimated_price) || 0,
-        is_acquired: Boolean(material.is_acquired),
-        sort_order: index,
-      }))
-      .filter(
-        (material) =>
-          material.name || material.source || Number(material.estimated_price) > 0,
-      )
-
-    const { error: taskError } = await supabase
-      .from('wedding_tasks')
-      .update({
-        title: trimmedTitle,
-        notes: notes.trim(),
-        progress: nextSubtasks.length ? 0 : clampProgress(progress),
-        timing: normalizeTaskTiming(timing),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', taskId)
-
-    if (taskError) {
-      setIsSubmitting(false)
-      setStatusMessage(`Nem sikerült menteni a feladatot: ${taskError.message}`)
-      return
-    }
-
-    const { data: existingChildren, error: existingChildrenError } = await supabase
-      .from('wedding_tasks')
-      .select('id')
-      .eq('parent_id', taskId)
-
-    if (existingChildrenError) {
-      setIsSubmitting(false)
-      setStatusMessage(
-        `Nem sikerült frissíteni az alfeladatokat: ${existingChildrenError.message}`,
-      )
-      return
-    }
-
-    const existingChildIds = (existingChildren || []).map((child) => child.id)
-    const keptChildIds = nextSubtasks.filter((subtask) => !subtask.isNew).map((subtask) => subtask.id)
-    const childIdsToDelete = existingChildIds.filter((id) => !keptChildIds.includes(id))
-
-    if (childIdsToDelete.length) {
-      const { error: deleteChildrenError } = await supabase
-        .from('wedding_tasks')
-        .delete()
-        .in('id', childIdsToDelete)
-
-      if (deleteChildrenError) {
-        setIsSubmitting(false)
-        setStatusMessage(
-          `Nem sikerült törölni az alfeladatokat: ${deleteChildrenError.message}`,
-        )
-        return
-      }
-    }
-
-    const savedSubtasks = []
-
-    for (const subtask of nextSubtasks) {
-      if (subtask.isNew) {
-        const { data, error } = await supabase
-          .from('wedding_tasks')
-          .insert({
-            parent_id: taskId,
-            title: subtask.title || 'Alfeladat',
-            progress: subtask.progress,
-            timing: normalizeTaskTiming(subtask.timing),
-            notes: '',
-            sort_order: subtask.sort_order,
-          })
-          .select('id, title, progress, timing, sort_order')
-          .single()
-
-        if (error) {
-          setIsSubmitting(false)
-          setStatusMessage(`Nem sikerült létrehozni az alfeladatot: ${error.message}`)
-          return
-        }
-
-        savedSubtasks.push({
-          id: data.id,
-          title: data.title,
-          progress: clampProgress(data.progress),
-          timing: normalizeTaskTiming(data.timing),
-          sort_order: data.sort_order,
-          assigneeIds: subtask.assigneeIds,
-          isNew: false,
-        })
-      } else {
-        const { error } = await supabase
-          .from('wedding_tasks')
-          .update({
-            title: subtask.title || 'Alfeladat',
-            progress: subtask.progress,
-            timing: normalizeTaskTiming(subtask.timing),
-            sort_order: subtask.sort_order,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', subtask.id)
-
-        if (error) {
-          setIsSubmitting(false)
-          setStatusMessage(`Nem sikerült menteni az alfeladatot: ${error.message}`)
-          return
-        }
-
-        savedSubtasks.push({
-          ...subtask,
-          title: subtask.title || 'Alfeladat',
-          timing: normalizeTaskTiming(subtask.timing),
-          isNew: false,
-        })
-      }
-    }
-
-    const assigneeTaskIds = [taskId, ...existingChildIds, ...savedSubtasks.map((item) => item.id)]
-    const assigneeRows = savedSubtasks.length
-      ? savedSubtasks.flatMap((subtask) =>
-          subtask.assigneeIds.map((userId) => ({
-            task_id: subtask.id,
-            user_id: userId,
-          })),
-        )
-      : assigneeIds.map((userId) => ({
-          task_id: taskId,
-          user_id: userId,
-        }))
-
-    const assigneeError = await replaceAssignees([...new Set(assigneeTaskIds)], assigneeRows)
-
-    if (assigneeError) {
-      setIsSubmitting(false)
-      setStatusMessage(`Nem sikerült menteni a hozzárendeléseket: ${assigneeError.message}`)
-      return
-    }
-
-    const { error: deleteMaterialsError } = await supabase
-      .from('wedding_task_materials')
-      .delete()
-      .eq('task_id', taskId)
-
-    if (deleteMaterialsError) {
-      setIsSubmitting(false)
-      setStatusMessage(
-        `Nem sikerült frissíteni az alapanyagokat: ${deleteMaterialsError.message}`,
-      )
-      return
-    }
-
-    let savedMaterials = []
-
-    if (nextMaterials.length) {
-      const { data, error } = await supabase
+    runImmediate(async () => {
+      const { error } = await supabase
         .from('wedding_task_materials')
-        .insert(
-          nextMaterials.map((material) => ({
-            task_id: taskId,
-            name: material.name,
-            source: material.source,
-            estimated_price: material.estimated_price,
-            is_acquired: material.is_acquired,
-            sort_order: material.sort_order,
-          })),
-        )
-        .select('id, name, source, estimated_price, is_acquired, sort_order')
+        .update({ is_acquired: nextValue })
+        .eq('id', material.id)
 
       if (error) {
-        setIsSubmitting(false)
-        setStatusMessage(`Nem sikerült menteni az alapanyagokat: ${error.message}`)
-        return
+        setMaterials((current) =>
+          current.map((item) =>
+            item.id === material.id ? { ...item, is_acquired: previousValue } : item,
+          ),
+        )
+        return `Nem sikerült menteni a beszerzés státuszát: ${error.message}`
       }
 
-      savedMaterials = (data || []).map((material, index) => ({
-        id: material.id,
-        name: material.name || '',
-        source: material.source || '',
-        estimated_price: String(material.estimated_price ?? 0),
-        is_acquired: Boolean(material.is_acquired),
-        sort_order: material.sort_order ?? index,
-        isNew: false,
-      }))
-    }
-
-    const nextState = {
-      title: trimmedTitle,
-      notes: notes.trim(),
-      progress: savedSubtasks.length ? 0 : clampProgress(progress),
-      timing: normalizeTaskTiming(timing),
-      assigneeIds: savedSubtasks.length ? [] : assigneeIds,
-      subtasks: savedSubtasks,
-      materials: savedMaterials,
-    }
-
-    setTitle(nextState.title)
-    setNotes(nextState.notes)
-    setProgress(nextState.progress)
-    setTiming(nextState.timing)
-    setAssigneeIds(nextState.assigneeIds)
-    setSubtasks(nextState.subtasks)
-    setMaterials(nextState.materials)
-    setSavedSnapshot(cloneState(nextState))
-    setIsEditing(false)
-    setIsSubmitting(false)
-    setStatusMessage('A feladat mentve.')
+      return null
+    })
   }
+
+  const saveLabel =
+    saveState === 'saving'
+      ? 'Mentés...'
+      : saveState === 'saved'
+        ? 'Automatikusan mentve'
+        : saveState === 'error'
+          ? 'Mentési hiba'
+          : 'A változtatások automatikusan mentődnek'
 
   if (isLoading) {
     return (
@@ -638,21 +755,11 @@ export default function AdminTaskDetailPage() {
 
         {hasAccess && (
           <>
-            <div className="admin-actions">
-              {!isEditing ? (
-                <button type="button" onClick={startEditing}>
-                  Szerkesztés
-                </button>
-              ) : (
-                <>
-                  <button type="button" onClick={saveChanges} disabled={isSubmitting}>
-                    {isSubmitting ? 'Mentés...' : 'Mentés'}
-                  </button>
-                  <button type="button" onClick={discardChanges} disabled={isSubmitting}>
-                    Módosítások elvetése
-                  </button>
-                </>
-              )}
+            <div className="admin-actions task-detail-actions">
+              <p className={`task-autosave-status is-${saveState}`}>{saveLabel}</p>
+              <button type="button" onClick={saveNow} disabled={isManualSaving}>
+                {isManualSaving ? 'Mentés...' : 'Mentés'}
+              </button>
               <Link className="text-link" to="/admin/tasks">
                 Vissza a listához
               </Link>
@@ -661,26 +768,22 @@ export default function AdminTaskDetailPage() {
             <div className="task-detail-grid">
               <label className="task-field">
                 <span>Feladat neve</span>
-                {isEditing ? (
-                  <input
-                    type="text"
-                    value={title}
-                    onChange={(event) => setTitle(event.target.value)}
-                  />
-                ) : (
-                  <strong>{title || 'Névtelen feladat'}</strong>
-                )}
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(event) => handleTitleChange(event.target.value)}
+                />
               </label>
 
               <div className="task-field">
                 <span>Készültség</span>
-                {hasSubtasks || !isEditing ? (
+                {hasSubtasks ? (
                   <div className="task-progress-readonly">
                     <div className="task-progress-bar" aria-hidden="true">
                       <span style={{ width: `${displayProgress}%` }} />
                     </div>
                     <strong>{displayProgress}%</strong>
-                    {hasSubtasks && <span className="task-progress-hint">átlag</span>}
+                    <span className="task-progress-hint">átlag</span>
                   </div>
                 ) : (
                   <div className="task-progress-edit">
@@ -692,7 +795,7 @@ export default function AdminTaskDetailPage() {
                       min="0"
                       max="100"
                       value={progress}
-                      onChange={(event) => setProgress(clampProgress(event.target.value))}
+                      onChange={(event) => handleProgressChange(event.target.value)}
                     />
                     <span>%</span>
                   </div>
@@ -701,21 +804,17 @@ export default function AdminTaskDetailPage() {
 
               <div className="task-field">
                 <span>Mikor végezhető el</span>
-                {isEditing ? (
-                  <select
-                    className="task-timing-select"
-                    value={normalizeTaskTiming(timing)}
-                    onChange={(event) => setTiming(normalizeTaskTiming(event.target.value))}
-                  >
-                    {TASK_TIMING_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <strong>{taskTimingLabel(timing)}</strong>
-                )}
+                <select
+                  className="task-timing-select"
+                  value={normalizeTaskTiming(timing)}
+                  onChange={(event) => handleTimingChange(event.target.value)}
+                >
+                  {TASK_TIMING_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="task-field">
@@ -732,7 +831,7 @@ export default function AdminTaskDetailPage() {
                       ))
                     )}
                   </div>
-                ) : isEditing ? (
+                ) : (
                   <div className="task-assignee-picker">
                     {adminProfiles.map((profile) => (
                       <label key={profile.user_id} className="task-assignee-option">
@@ -745,46 +844,30 @@ export default function AdminTaskDetailPage() {
                       </label>
                     ))}
                   </div>
-                ) : (
-                  <div className="task-assignee-chips">
-                    {assigneeIds.length === 0 ? (
-                      <span className="task-assignee-empty">Nincs hozzárendelve</span>
-                    ) : (
-                      assigneeIds.map((userId) => (
-                        <span className="task-assignee-chip" key={userId}>
-                          {profileName(userId)}
-                        </span>
-                      ))
-                    )}
-                  </div>
                 )}
               </div>
 
               <label className="task-field task-field-wide">
                 <span>Megjegyzések</span>
-                {isEditing ? (
-                  <textarea
-                    rows="5"
-                    value={notes}
-                    onChange={(event) => setNotes(event.target.value)}
-                    placeholder="Ide írhatod a feladat részleteit, döntéseket, teendőket..."
-                  />
-                ) : (
-                  <p className="task-notes-readonly">
-                    {notes.trim() || 'Nincs megjegyzés.'}
-                  </p>
-                )}
+                <textarea
+                  rows="5"
+                  value={notes}
+                  onChange={(event) => handleNotesChange(event.target.value)}
+                  placeholder="Ide írhatod a feladat részleteit, döntéseket, teendőket..."
+                />
               </label>
             </div>
 
             <section className="task-section">
               <div className="task-section-head">
                 <h2>Alfeladatok</h2>
-                {isEditing && (
-                  <button type="button" onClick={addSubtask}>
-                    Alfeladat hozzáadása
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={addSubtask}
+                  disabled={busyAction === 'add-subtask'}
+                >
+                  {busyAction === 'add-subtask' ? 'Hozzáadás...' : 'Alfeladat hozzáadása'}
+                </button>
               </div>
               <p className="admin-summary">
                 Ha vannak alfeladatok, a fő feladat készültsége azok átlaga, a hozzárendeltek pedig
@@ -799,108 +882,84 @@ export default function AdminTaskDetailPage() {
                       <th>Mikor</th>
                       <th>Készültség</th>
                       <th>Hozzárendelve</th>
-                      {isEditing && <th />}
+                      <th />
                     </tr>
                   </thead>
                   <tbody>
                     {subtasks.length === 0 ? (
                       <tr>
-                        <td colSpan={isEditing ? 5 : 4}>Még nincs alfeladat.</td>
+                        <td colSpan="5">Még nincs alfeladat.</td>
                       </tr>
                     ) : (
                       subtasks.map((subtask) => (
                         <tr key={subtask.id}>
                           <td>
-                            {isEditing ? (
-                              <input
-                                type="text"
-                                value={subtask.title}
-                                onChange={(event) =>
-                                  updateSubtask(subtask.id, 'title', event.target.value)
-                                }
-                                placeholder="Alfeladat neve"
-                              />
-                            ) : (
-                              subtask.title || 'Névtelen alfeladat'
-                            )}
+                            <input
+                              type="text"
+                              value={subtask.title}
+                              onChange={(event) =>
+                                updateSubtask(subtask.id, 'title', event.target.value)
+                              }
+                              placeholder="Alfeladat neve"
+                            />
                           </td>
                           <td className="task-timing-cell">
-                            {isEditing ? (
-                              <select
-                                className="task-timing-select"
-                                value={normalizeTaskTiming(subtask.timing)}
-                                onChange={(event) =>
-                                  updateSubtask(subtask.id, 'timing', event.target.value)
-                                }
-                              >
-                                {TASK_TIMING_OPTIONS.map((option) => (
-                                  <option key={option.value} value={option.value}>
-                                    {option.label}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              taskTimingLabel(subtask.timing)
-                            )}
+                            <select
+                              className="task-timing-select"
+                              value={normalizeTaskTiming(subtask.timing)}
+                              onChange={(event) =>
+                                updateSubtask(subtask.id, 'timing', event.target.value)
+                              }
+                            >
+                              {TASK_TIMING_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
                           </td>
                           <td className="task-progress-cell">
-                            {isEditing ? (
-                              <div className="task-progress-edit">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max="100"
-                                  value={subtask.progress}
-                                  onChange={(event) =>
-                                    updateSubtask(subtask.id, 'progress', event.target.value)
-                                  }
-                                />
-                                <span>%</span>
-                              </div>
-                            ) : (
-                              <strong>{subtask.progress}%</strong>
-                            )}
+                            <div className="task-progress-edit">
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                value={subtask.progress}
+                                onChange={(event) =>
+                                  updateSubtask(subtask.id, 'progress', event.target.value)
+                                }
+                              />
+                              <span>%</span>
+                            </div>
                           </td>
                           <td>
-                            {isEditing ? (
-                              <div className="task-assignee-picker">
-                                {adminProfiles.map((profile) => (
-                                  <label
-                                    key={profile.user_id}
-                                    className="task-assignee-option"
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={subtask.assigneeIds.includes(profile.user_id)}
-                                      onChange={() =>
-                                        toggleSubtaskAssignee(subtask.id, profile.user_id)
-                                      }
-                                    />
-                                    <span>{profile.display_name}</span>
-                                  </label>
-                                ))}
-                              </div>
-                            ) : (
-                              <div className="task-assignee-chips">
-                                {subtask.assigneeIds.length === 0 ? (
-                                  <span className="task-assignee-empty">Nincs</span>
-                                ) : (
-                                  subtask.assigneeIds.map((userId) => (
-                                    <span className="task-assignee-chip" key={userId}>
-                                      {profileName(userId)}
-                                    </span>
-                                  ))
-                                )}
-                              </div>
-                            )}
+                            <div className="task-assignee-picker">
+                              {adminProfiles.map((profile) => (
+                                <label
+                                  key={profile.user_id}
+                                  className="task-assignee-option"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={subtask.assigneeIds.includes(profile.user_id)}
+                                    onChange={() =>
+                                      toggleSubtaskAssignee(subtask.id, profile.user_id)
+                                    }
+                                  />
+                                  <span>{profile.display_name}</span>
+                                </label>
+                              ))}
+                            </div>
                           </td>
-                          {isEditing && (
-                            <td>
-                              <button type="button" onClick={() => removeSubtask(subtask.id)}>
-                                Törlés
-                              </button>
-                            </td>
-                          )}
+                          <td>
+                            <button
+                              type="button"
+                              onClick={() => removeSubtask(subtask.id)}
+                              disabled={busyAction === `remove-subtask:${subtask.id}`}
+                            >
+                              Törlés
+                            </button>
+                          </td>
                         </tr>
                       ))
                     )}
@@ -912,11 +971,13 @@ export default function AdminTaskDetailPage() {
             <section className="task-section">
               <div className="task-section-head">
                 <h2>Alapanyagok</h2>
-                {isEditing && (
-                  <button type="button" onClick={addMaterial}>
-                    Alapanyag hozzáadása
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={addMaterial}
+                  disabled={busyAction === 'add-material'}
+                >
+                  {busyAction === 'add-material' ? 'Hozzáadás...' : 'Alapanyag hozzáadása'}
+                </button>
               </div>
 
               <div className="admin-table-wrapper">
@@ -927,13 +988,13 @@ export default function AdminTaskDetailPage() {
                       <th>Alapanyag</th>
                       <th>Beszerzés</th>
                       <th>Becsült ár</th>
-                      {isEditing && <th />}
+                      <th />
                     </tr>
                   </thead>
                   <tbody>
                     {materials.length === 0 ? (
                       <tr>
-                        <td colSpan={isEditing ? 5 : 4}>Még nincs alapanyag.</td>
+                        <td colSpan="5">Még nincs alapanyag.</td>
                       </tr>
                     ) : (
                       materials.map((material) => (
@@ -953,60 +1014,50 @@ export default function AdminTaskDetailPage() {
                             </label>
                           </td>
                           <td>
-                            {isEditing ? (
-                              <input
-                                type="text"
-                                value={material.name}
-                                onChange={(event) =>
-                                  updateMaterial(material.id, 'name', event.target.value)
-                                }
-                                placeholder="pl. virág, szalag"
-                              />
-                            ) : (
-                              material.name || '—'
-                            )}
+                            <input
+                              type="text"
+                              value={material.name}
+                              onChange={(event) =>
+                                updateMaterial(material.id, 'name', event.target.value)
+                              }
+                              placeholder="pl. virág, szalag"
+                            />
                           </td>
                           <td>
-                            {isEditing ? (
-                              <input
-                                type="text"
-                                value={material.source}
-                                onChange={(event) =>
-                                  updateMaterial(material.id, 'source', event.target.value)
-                                }
-                                placeholder="Honnan szerezzük be?"
-                              />
-                            ) : (
-                              material.source || '—'
-                            )}
+                            <input
+                              type="text"
+                              value={material.source}
+                              onChange={(event) =>
+                                updateMaterial(material.id, 'source', event.target.value)
+                              }
+                              placeholder="Honnan szerezzük be?"
+                            />
                           </td>
                           <td>
-                            {isEditing ? (
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={material.estimated_price}
-                                onChange={(event) =>
-                                  updateMaterial(
-                                    material.id,
-                                    'estimated_price',
-                                    event.target.value,
-                                  )
-                                }
-                                placeholder="0"
-                              />
-                            ) : (
-                              `${Number(material.estimated_price || 0).toLocaleString('hu-HU')} Ft`
-                            )}
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={material.estimated_price}
+                              onChange={(event) =>
+                                updateMaterial(
+                                  material.id,
+                                  'estimated_price',
+                                  event.target.value,
+                                )
+                              }
+                              placeholder="0"
+                            />
                           </td>
-                          {isEditing && (
-                            <td>
-                              <button type="button" onClick={() => removeMaterial(material.id)}>
-                                Törlés
-                              </button>
-                            </td>
-                          )}
+                          <td>
+                            <button
+                              type="button"
+                              onClick={() => removeMaterial(material.id)}
+                              disabled={busyAction === `remove-material:${material.id}`}
+                            >
+                              Törlés
+                            </button>
+                          </td>
                         </tr>
                       ))
                     )}

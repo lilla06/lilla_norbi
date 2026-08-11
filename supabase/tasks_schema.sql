@@ -44,10 +44,10 @@ create table if not exists public.wedding_task_assignees (
   primary key (task_id, user_id)
 );
 
--- Alapanyagok a feladathoz
+-- Alapanyagok (feladathoz kötve vagy wishlistben, task_id nélkül)
 create table if not exists public.wedding_task_materials (
   id uuid primary key default gen_random_uuid(),
-  task_id uuid not null references public.wedding_tasks (id) on delete cascade,
+  task_id uuid references public.wedding_tasks (id) on delete set null,
   name text not null default '',
   source text not null default '',
   estimated_price numeric(12, 2) not null default 0,

@@ -147,6 +147,9 @@ export default function Layout({ children }) {
                 <button type="button" onClick={() => navigateFromMenu('/admin/tasks')}>
                   Feladatok
                 </button>
+                <button type="button" onClick={() => navigateFromMenu('/admin/wishlist')}>
+                  Wishlist
+                </button>
               </div>
             </div>
           )}
