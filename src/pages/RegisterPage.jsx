@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import Monogram from '../components/Monogram'
 import { supabase } from '../lib/supabase'
 
 export default function RegisterPage() {
+  const navigate = useNavigate()
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -22,6 +23,10 @@ export default function RegisterPage() {
     }))
   }
 
+  function redirectAfterAuth(user) {
+    navigate(user?.app_metadata?.role === 'admin' ? '/admin' : '/rsvp')
+  }
+
   async function handleSubmit(event) {
     event.preventDefault()
     setStatusMessage('')
@@ -33,7 +38,7 @@ export default function RegisterPage() {
 
     setIsSubmitting(true)
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: formData.email,
       password: formData.password,
       options: {
@@ -43,22 +48,32 @@ export default function RegisterPage() {
       },
     })
 
-    setIsSubmitting(false)
-
     if (error) {
+      setIsSubmitting(false)
       setStatusMessage(`Nem sikerült a regisztráció: ${error.message}`)
       return
     }
 
-    setFormData({
-      name: '',
-      email: '',
-      password: '',
-      confirmPassword: '',
+    if (data.session?.user) {
+      setIsSubmitting(false)
+      redirectAfterAuth(data.session.user)
+      return
+    }
+
+    // Ha valamiért nincs session a signUp válaszában, azonnal beléptetjük.
+    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+      email: formData.email,
+      password: formData.password,
     })
-    setStatusMessage(
-      'Sikeres regisztráció. Ha email megerősítés be van kapcsolva, nézd meg a postafiókodat.',
-    )
+
+    setIsSubmitting(false)
+
+    if (signInError) {
+      setStatusMessage(`Nem sikerült a belépés a regisztráció után: ${signInError.message}`)
+      return
+    }
+
+    redirectAfterAuth(signInData.user)
   }
 
   return (
