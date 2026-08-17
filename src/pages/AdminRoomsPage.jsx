@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import {
+  buildInviteeToGuestNameMap,
+  clonePlanRooms,
+  copyRoomsPlannedToActual,
+} from '../lib/planAssignments'
 import { supabase } from '../lib/supabase'
 
 function isAdmin(user) {
@@ -21,10 +26,7 @@ function createRoom(displayOrder = 0) {
 }
 
 function cloneRooms(rooms) {
-  return rooms.map((room) => ({
-    ...room,
-    assignments: { ...room.assignments },
-  }))
+  return clonePlanRooms(rooms)
 }
 
 function getRoomTitle(room) {
@@ -116,7 +118,7 @@ function sanitizeRoom(room, displayOrder) {
   }
 }
 
-function createAssignmentRows(rooms) {
+function createAssignmentRows(rooms, planType) {
   return rooms.flatMap((room) =>
     Object.entries(room.assignments)
       .map(([assignmentKey, guestName]) => {
@@ -127,24 +129,53 @@ function createAssignmentRows(rooms) {
           bed_key: bedKey,
           slot_index: Number(slotIndex),
           guest_name: guestName,
+          plan_type: planType,
         }
       })
       .filter((assignment) => assignment.guest_name),
   )
 }
 
+function syncRoomStructure(sourceRooms, targetRooms) {
+  const targetByKey = new Map(targetRooms.map((room) => [room.room_key, room]))
+
+  return sourceRooms.map((room, index) => {
+    const previous = targetByKey.get(room.room_key)
+    return sanitizeRoom(
+      {
+        ...room,
+        assignments: previous?.assignments || {},
+      },
+      index,
+    )
+  })
+}
+
 export default function AdminRoomsPage() {
   const navigate = useNavigate()
-  const [rooms, setRooms] = useState([])
-  const [savedRooms, setSavedRooms] = useState([])
-  const [guestResponses, setGuestResponses] = useState([])
-  const [guestNames, setGuestNames] = useState([])
+  const [planType, setPlanType] = useState('planned')
+  const [plannedRooms, setPlannedRooms] = useState([])
+  const [actualRooms, setActualRooms] = useState([])
+  const [savedPlannedRooms, setSavedPlannedRooms] = useState([])
+  const [savedActualRooms, setSavedActualRooms] = useState([])
+  const [invitees, setInvitees] = useState([])
+  const [guests, setGuests] = useState([])
   const [draggedGuest, setDraggedGuest] = useState('')
   const [editMode, setEditMode] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [hasAccess, setHasAccess] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
+
+  const rooms = planType === 'planned' ? plannedRooms : actualRooms
+
+  function setRooms(value) {
+    if (planType === 'planned') {
+      setPlannedRooms(value)
+    } else {
+      setActualRooms(value)
+    }
+  }
 
   useEffect(() => {
     async function loadRooms() {
@@ -166,10 +197,12 @@ export default function AdminRoomsPage() {
 
       const [
         { data: guestData, error: guestError },
+        { data: inviteeData, error: inviteeError },
         { data: roomData, error: roomError },
         { data: assignmentData, error: assignmentError },
       ] = await Promise.all([
-        supabase.from('guests').select('name, response').order('name'),
+        supabase.from('guests').select('id, name, response').order('name'),
+        supabase.from('invitees').select('id, name, label, guest_id').order('name'),
         supabase
           .from('accommodation_rooms')
           .select(
@@ -178,23 +211,36 @@ export default function AdminRoomsPage() {
           .order('display_order'),
         supabase
           .from('accommodation_assignments')
-          .select('room_key, bed_key, slot_index, guest_name')
+          .select('room_key, bed_key, slot_index, guest_name, plan_type')
           .order('room_key'),
       ])
 
-      if (guestError || roomError || assignmentError) {
+      if (guestError || inviteeError || roomError || assignmentError) {
         setStatusMessage(
           `Nem sikerült betölteni a szobabeosztást: ${
-            guestError?.message || roomError?.message || assignmentError?.message
+            guestError?.message ||
+            inviteeError?.message ||
+            roomError?.message ||
+            assignmentError?.message
           }`,
         )
       } else {
-        const loadedRooms = normalizeRooms(roomData || [], assignmentData || [])
+        const baseRooms = roomData || []
+        const plannedAssignments = (assignmentData || []).filter(
+          (row) => (row.plan_type || 'actual') === 'planned',
+        )
+        const actualAssignments = (assignmentData || []).filter(
+          (row) => (row.plan_type || 'actual') === 'actual',
+        )
+        const loadedPlanned = normalizeRooms(baseRooms, plannedAssignments)
+        const loadedActual = normalizeRooms(baseRooms, actualAssignments)
 
-        setGuestResponses(guestData || [])
-        setGuestNames((guestData || []).filter((guest) => guest.response).map((guest) => guest.name))
-        setRooms(loadedRooms)
-        setSavedRooms(cloneRooms(loadedRooms))
+        setGuests(guestData || [])
+        setInvitees(inviteeData || [])
+        setPlannedRooms(loadedPlanned)
+        setActualRooms(loadedActual)
+        setSavedPlannedRooms(cloneRooms(loadedPlanned))
+        setSavedActualRooms(cloneRooms(loadedActual))
       }
 
       setIsLoading(false)
@@ -203,48 +249,84 @@ export default function AdminRoomsPage() {
     loadRooms()
   }, [navigate])
 
+  const personNames =
+    planType === 'planned'
+      ? invitees.map((invitee) => invitee.name).filter(Boolean)
+      : guests.filter((guest) => guest.response).map((guest) => guest.name)
   const assignedGuests = rooms.flatMap((room) => Object.values(room.assignments)).filter(Boolean)
-  const availableGuests = guestNames
+  const availableGuests = personNames
     .filter((guest) => !assignedGuests.includes(guest))
     .sort((left, right) => left.localeCompare(right, 'hu'))
-  const guestResponseByName = new Map(guestResponses.map((guest) => [guest.name, guest.response]))
-  const roomWarnings = rooms.flatMap((room) =>
-    Object.values(room.assignments)
-      .filter(Boolean)
-      .map((guestName) => ({
-        guestName,
-        roomName: getRoomTitle(room),
-      }))
-      .filter(({ guestName }) => guestResponseByName.get(guestName) !== true),
-  )
+  const guestResponseByName = new Map(guests.map((guest) => [guest.name, guest.response]))
+  const roomWarnings =
+    planType === 'actual'
+      ? rooms.flatMap((room) =>
+          Object.values(room.assignments)
+            .filter(Boolean)
+            .map((guestName) => ({
+              guestName,
+              roomName: getRoomTitle(room),
+            }))
+            .filter(({ guestName }) => guestResponseByName.get(guestName) !== true),
+        )
+      : []
+
+  function switchPlanType(nextType) {
+    if (nextType === planType) {
+      return
+    }
+
+    if (editMode) {
+      const confirmed = window.confirm(
+        'Mentetlen módosítások elveszhetnek. Biztosan váltasz nézetet?',
+      )
+      if (!confirmed) {
+        return
+      }
+
+      setPlannedRooms(cloneRooms(savedPlannedRooms))
+      setActualRooms(cloneRooms(savedActualRooms))
+      setEditMode(null)
+      setDraggedGuest('')
+    }
+
+    setPlanType(nextType)
+    setStatusMessage('')
+  }
 
   function getDraggedGuest(event) {
     return event?.dataTransfer?.getData('text/plain') || draggedGuest
   }
 
   function startEditing(nextMode) {
-    setSavedRooms(cloneRooms(rooms))
+    setSavedPlannedRooms(cloneRooms(plannedRooms))
+    setSavedActualRooms(cloneRooms(actualRooms))
     setEditMode(nextMode)
     setStatusMessage('')
   }
 
   function discardChanges() {
-    setRooms(cloneRooms(savedRooms))
+    setPlannedRooms(cloneRooms(savedPlannedRooms))
+    setActualRooms(cloneRooms(savedActualRooms))
     setDraggedGuest('')
     setEditMode(null)
     setStatusMessage('')
   }
 
   function addRoom() {
-    setRooms((currentRooms) => [...currentRooms, createRoom(currentRooms.length)])
+    const nextRoom = createRoom(Math.max(plannedRooms.length, actualRooms.length))
+    setPlannedRooms((currentRooms) => [...currentRooms, { ...nextRoom, assignments: {} }])
+    setActualRooms((currentRooms) => [...currentRooms, { ...nextRoom, assignments: {} }])
   }
 
   function removeRoom(roomIndex) {
-    setRooms((currentRooms) => currentRooms.filter((_room, index) => index !== roomIndex))
+    const apply = (currentRooms) => currentRooms.filter((_room, index) => index !== roomIndex)
+    setPlannedRooms(apply)
+    setActualRooms(apply)
   }
 
   function updateRoom(roomIndex, field, value) {
-    setRooms((currentRooms) =>
+    const apply = (currentRooms) =>
       currentRooms.map((room, index) => {
         if (index !== roomIndex) {
           return room
@@ -252,8 +334,10 @@ export default function AdminRoomsPage() {
 
         const nextValue = field.endsWith('_beds') ? Number(value) : value
         return sanitizeRoom({ ...room, [field]: nextValue }, index)
-      }),
-    )
+      })
+
+    setPlannedRooms(apply)
+    setActualRooms(apply)
   }
 
   function assignGuest(roomIndex, assignmentKey, guestName = draggedGuest) {
@@ -299,12 +383,42 @@ export default function AdminRoomsPage() {
     )
   }
 
+  async function persistAssignments(targetPlanType, nextRooms) {
+    const { error: deleteError } = await supabase
+      .from('accommodation_assignments')
+      .delete()
+      .eq('plan_type', targetPlanType)
+      .gte('slot_index', 0)
+
+    if (deleteError) {
+      return deleteError
+    }
+
+    const assignmentRows = createAssignmentRows(nextRooms, targetPlanType)
+    if (!assignmentRows.length) {
+      return null
+    }
+
+    const { error: assignmentError } = await supabase
+      .from('accommodation_assignments')
+      .insert(assignmentRows)
+
+    return assignmentError
+  }
+
   async function saveRooms() {
     setStatusMessage('')
     setIsSubmitting(true)
 
-    const sanitizedRooms = rooms.map((room, index) => sanitizeRoom(room, index))
-    const roomRows = sanitizedRooms.map((room) => ({
+    const sourceRooms = planType === 'planned' ? plannedRooms : actualRooms
+    const otherRooms = planType === 'planned' ? actualRooms : plannedRooms
+    const sanitizedSource = sourceRooms.map((room, index) => sanitizeRoom(room, index))
+    const sanitizedOther = syncRoomStructure(sanitizedSource, otherRooms)
+
+    const nextPlanned = planType === 'planned' ? sanitizedSource : sanitizedOther
+    const nextActual = planType === 'actual' ? sanitizedSource : sanitizedOther
+
+    const roomRows = sanitizedSource.map((room) => ({
       room_key: room.room_key,
       location_name: room.location_name.trim(),
       room_number: room.room_number.trim(),
@@ -315,9 +429,12 @@ export default function AdminRoomsPage() {
       display_order: room.display_order,
     }))
 
-    const removedRoomKeys = savedRooms
-      .map((room) => room.room_key)
-      .filter((roomKey) => !sanitizedRooms.some((room) => room.room_key === roomKey))
+    const previousKeys = new Set([
+      ...savedPlannedRooms.map((room) => room.room_key),
+      ...savedActualRooms.map((room) => room.room_key),
+    ])
+    const nextKeys = new Set(sanitizedSource.map((room) => room.room_key))
+    const removedRoomKeys = [...previousKeys].filter((roomKey) => !nextKeys.has(roomKey))
 
     if (removedRoomKeys.length > 0) {
       const { error: deleteError } = await supabase
@@ -342,34 +459,24 @@ export default function AdminRoomsPage() {
       return
     }
 
-    const currentRoomKeys = sanitizedRooms.map((room) => room.room_key)
-
-    if (currentRoomKeys.length > 0) {
-      const { error: deleteAssignmentError } = await supabase
-        .from('accommodation_assignments')
-        .delete()
-        .in('room_key', currentRoomKeys)
-
-      if (deleteAssignmentError) {
-        setIsSubmitting(false)
-        setStatusMessage(`Nem sikerült frissíteni a szobabeosztást: ${deleteAssignmentError.message}`)
-        return
-      }
-    }
-
-    const assignmentRows = createAssignmentRows(sanitizedRooms)
-    const { error: assignmentError } = assignmentRows.length
-      ? await supabase.from('accommodation_assignments').insert(assignmentRows)
-      : { error: null }
-
-    if (assignmentError) {
+    const plannedError = await persistAssignments('planned', nextPlanned)
+    if (plannedError) {
       setIsSubmitting(false)
-      setStatusMessage(`Nem sikerült menteni a szobabeosztást: ${assignmentError.message}`)
+      setStatusMessage(`Nem sikerült menteni a tervezett beosztást: ${plannedError.message}`)
       return
     }
 
-    setRooms(sanitizedRooms)
-    setSavedRooms(cloneRooms(sanitizedRooms))
+    const actualError = await persistAssignments('actual', nextActual)
+    if (actualError) {
+      setIsSubmitting(false)
+      setStatusMessage(`Nem sikerült menteni a valós beosztást: ${actualError.message}`)
+      return
+    }
+
+    setPlannedRooms(nextPlanned)
+    setActualRooms(nextActual)
+    setSavedPlannedRooms(cloneRooms(nextPlanned))
+    setSavedActualRooms(cloneRooms(nextActual))
     setIsSubmitting(false)
     setEditMode(null)
     setStatusMessage('A szobák mentve.')
@@ -379,33 +486,52 @@ export default function AdminRoomsPage() {
     setStatusMessage('')
     setIsSubmitting(true)
 
-    const { error: deleteError } = await supabase
-      .from('accommodation_assignments')
-      .delete()
-      .gte('slot_index', 0)
-
-    if (deleteError) {
+    const persistError = await persistAssignments(planType, rooms)
+    if (persistError) {
       setIsSubmitting(false)
-      setStatusMessage(`Nem sikerült frissíteni a szobabeosztást: ${deleteError.message}`)
+      setStatusMessage(`Nem sikerült menteni a szobabeosztást: ${persistError.message}`)
       return
     }
 
-    const assignmentRows = createAssignmentRows(rooms)
-
-    const { error: assignmentError } = assignmentRows.length
-      ? await supabase.from('accommodation_assignments').insert(assignmentRows)
-      : { error: null }
-
-    if (assignmentError) {
-      setIsSubmitting(false)
-      setStatusMessage(`Nem sikerült menteni a szobabeosztást: ${assignmentError.message}`)
-      return
+    if (planType === 'planned') {
+      setSavedPlannedRooms(cloneRooms(rooms))
+    } else {
+      setSavedActualRooms(cloneRooms(rooms))
     }
 
-    setSavedRooms(cloneRooms(rooms))
     setIsSubmitting(false)
     setEditMode(null)
-    setStatusMessage('A szobabeosztás mentve.')
+    setStatusMessage(
+      planType === 'planned' ? 'A tervezett szobabeosztás mentve.' : 'A valós szobabeosztás mentve.',
+    )
+  }
+
+  async function transferLinkedToActual() {
+    if (editMode) {
+      setStatusMessage('Előbb mentsd vagy vesd el a szerkesztést, mielőtt áttöltenél.')
+      return
+    }
+
+    const inviteeToGuest = buildInviteeToGuestNameMap(invitees, guests)
+    if (inviteeToGuest.size === 0) {
+      setStatusMessage('Nincs összekötött meghívott–visszajelzés pár az áttöltéshez.')
+      return
+    }
+
+    setIsSubmitting(true)
+    const nextActual = copyRoomsPlannedToActual(plannedRooms, actualRooms, inviteeToGuest)
+    const persistError = await persistAssignments('actual', nextActual)
+    setIsSubmitting(false)
+
+    if (persistError) {
+      setStatusMessage(`Nem sikerült áttölteni a valós szobabeosztásba: ${persistError.message}`)
+      return
+    }
+
+    setActualRooms(nextActual)
+    setSavedActualRooms(cloneRooms(nextActual))
+    setPlanType('actual')
+    setStatusMessage('Az összekötött meghívottak áttöltve a valós szobabeosztásba.')
   }
 
   if (isLoading) {
@@ -442,7 +568,40 @@ export default function AdminRoomsPage() {
 
         {hasAccess && (
           <div>
+            <div className="admin-view-tabs" role="tablist" aria-label="Szobabeosztás nézetek">
+              <button
+                type="button"
+                role="tab"
+                className={planType === 'planned' ? 'is-active' : ''}
+                aria-selected={planType === 'planned'}
+                onClick={() => switchPlanType('planned')}
+              >
+                Tervezett
+              </button>
+              <button
+                type="button"
+                role="tab"
+                className={planType === 'actual' ? 'is-active' : ''}
+                aria-selected={planType === 'actual'}
+                onClick={() => switchPlanType('actual')}
+              >
+                Valós
+              </button>
+            </div>
+
+            <p className="admin-summary">
+              {planType === 'planned'
+                ? 'Tervezett nézet: a meghívottak listájából osztasz szobát.'
+                : 'Valós nézet: a visszajelzett (jön) vendégekből osztasz szobát.'}
+            </p>
+
             <div className="admin-actions">
+              {!editMode && (
+                <button type="button" onClick={transferLinkedToActual} disabled={isSubmitting}>
+                  Áttöltés tervezettből
+                </button>
+              )}
+
               {!editMode ? (
                 <>
                   <button type="button" onClick={() => startEditing('rooms')}>
@@ -576,9 +735,13 @@ export default function AdminRoomsPage() {
             {editMode === 'assignments' && (
               <section className="room-assignment-editor">
                 <aside className="guest-palette room-guest-palette">
-                  <h2>Vendégek</h2>
+                  <h2>{planType === 'planned' ? 'Meghívottak' : 'Vendégek'}</h2>
                   {availableGuests.length === 0 ? (
-                    <p>Minden visszajelzett vendég kapott szobát.</p>
+                    <p>
+                      {planType === 'planned'
+                        ? 'Minden meghívott kapott szobát.'
+                        : 'Minden visszajelzett vendég kapott szobát.'}
+                    </p>
                   ) : (
                     availableGuests.map((guest) => (
                       <button
@@ -684,7 +847,9 @@ export default function AdminRoomsPage() {
           </div>
         )}
 
-        <Link className="text-link" to="/">Vissza a főoldalra</Link>
+        <Link className="text-link" to="/">
+          Vissza a főoldalra
+        </Link>
       </section>
     </main>
   )

@@ -127,6 +127,15 @@ function getSortedLeafCategories(categories) {
   )
 }
 
+/** Fő kategória → alkategóriák id-i; levél → saját id */
+function getFilterCategoryIdsForCategory(categoryId, categories) {
+  const children = categories
+    .filter((category) => category.parent_id === categoryId)
+    .map((category) => category.id)
+
+  return children.length > 0 ? children : [categoryId]
+}
+
 function getCategoryTotals(category, categories, transactions) {
   const children = categories.filter((item) => item.parent_id === category.id)
 
@@ -216,6 +225,11 @@ export default function AdminBudgetPage() {
   const [expandedCategoryIds, setExpandedCategoryIds] = useState(new Set())
   const [isEditingCategories, setIsEditingCategories] = useState(false)
   const [isEditingTransactions, setIsEditingTransactions] = useState(false)
+  const [appliedCategoryFilter, setAppliedCategoryFilter] = useState([])
+  const [draftCategoryFilter, setDraftCategoryFilter] = useState([])
+  const [isFilterOpen, setIsFilterOpen] = useState(false)
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const [newTransaction, setNewTransaction] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [hasAccess, setHasAccess] = useState(false)
@@ -310,6 +324,107 @@ export default function AdminBudgetPage() {
         })),
     [summaryRows],
   )
+
+  const filteredTransactions = useMemo(() => {
+    if (appliedCategoryFilter.length === 0) {
+      return transactions
+    }
+
+    const allowed = new Set(appliedCategoryFilter)
+    return transactions.filter((transaction) => allowed.has(transaction.category_id))
+  }, [transactions, appliedCategoryFilter])
+
+  function openCategoryFilter() {
+    setDraftCategoryFilter([...appliedCategoryFilter])
+    setIsFilterOpen(true)
+  }
+
+  function toggleDraftFilterCategory(categoryId) {
+    setDraftCategoryFilter((current) =>
+      current.includes(categoryId)
+        ? current.filter((id) => id !== categoryId)
+        : [...current, categoryId],
+    )
+  }
+
+  function applyCategoryFilter() {
+    setAppliedCategoryFilter([...draftCategoryFilter])
+    setIsFilterOpen(false)
+  }
+
+  function clearCategoryFilter() {
+    setAppliedCategoryFilter([])
+    setDraftCategoryFilter([])
+    setIsFilterOpen(false)
+  }
+
+  function openTransactionsForCategory(categoryId) {
+    const filterIds = getFilterCategoryIdsForCategory(categoryId, categories)
+    setAppliedCategoryFilter(filterIds)
+    setDraftCategoryFilter(filterIds)
+    setIsFilterOpen(false)
+    setViewMode('transactions')
+    setStatusMessage('')
+  }
+
+  function openAddTransactionModal() {
+    const defaultCategoryId =
+      appliedCategoryFilter[0] || leafCategories[0]?.id || ''
+    setNewTransaction(createTransaction(defaultCategoryId))
+    setIsAddModalOpen(true)
+    setStatusMessage('')
+  }
+
+  function closeAddTransactionModal() {
+    setIsAddModalOpen(false)
+    setNewTransaction(null)
+  }
+
+  function updateNewTransactionField(field, value) {
+    setNewTransaction((current) => (current ? { ...current, [field]: value } : current))
+  }
+
+  async function saveNewTransaction() {
+    if (!newTransaction) {
+      return
+    }
+
+    if (!newTransaction.category_id || !newTransaction.description.trim()) {
+      setStatusMessage('Az új tranzakcióhoz kell kategória és leírás.')
+      return
+    }
+
+    setIsSubmitting(true)
+    setStatusMessage('')
+
+    const row = {
+      id: newTransaction.id,
+      category_id: newTransaction.category_id,
+      amount: Number(newTransaction.amount) || 0,
+      description: newTransaction.description.trim(),
+      transaction_date: newTransaction.transaction_date,
+    }
+
+    const { data, error } = await supabase
+      .from('budget_transactions')
+      .insert(row)
+      .select('*')
+      .single()
+
+    setIsSubmitting(false)
+
+    if (error) {
+      setStatusMessage(`Nem sikerült menteni a tranzakciót: ${error.message}`)
+      return
+    }
+
+    const nextTransactions = [data, ...transactions]
+    setTransactions(nextTransactions)
+    setSavedTransactions(cloneTransactions(nextTransactions))
+    closeAddTransactionModal()
+    setViewMode('transactions')
+    setStatusMessage('Az új tranzakció mentve.')
+  }
 
   function toggleCategory(categoryId) {
     setExpandedCategoryIds((current) => {
@@ -430,11 +545,6 @@ export default function AdminBudgetPage() {
         transaction.id === transactionId ? { ...transaction, [field]: value } : transaction,
       ),
     )
-  }
-
-  function addTransaction() {
-    const defaultCategoryId = leafCategories[0]?.id || ''
-    setTransactions((current) => [...current, createTransaction(defaultCategoryId)])
   }
 
   function removeTransaction(transactionId) {
@@ -616,7 +726,10 @@ export default function AdminBudgetPage() {
                     Kategóriák szerkesztése
                   </button>
                   <button type="button" onClick={() => setViewMode('transactions')}>
-                    Tranzakciók szerkesztése
+                    Tranzakciók
+                  </button>
+                  <button type="button" onClick={openAddTransactionModal}>
+                    Új tranzakció
                   </button>
                 </div>
 
@@ -661,7 +774,13 @@ export default function AdminBudgetPage() {
                                       {expandedCategoryIds.has(category.id) ? '▾' : '▸'}
                                     </button>
                                   )}
-                                  {category.name}
+                                  <button
+                                    type="button"
+                                    className="budget-category-link"
+                                    onClick={() => openTransactionsForCategory(category.id)}
+                                  >
+                                    {category.name}
+                                  </button>
                                 </td>
                                 <td>{formatCurrency(category.budget)}</td>
                                 <td>{formatCurrency(category.actual)}</td>
@@ -670,7 +789,15 @@ export default function AdminBudgetPage() {
                               {expandedCategoryIds.has(category.id) &&
                                 childRows.map((child) => (
                                   <tr className="budget-subcategory-row" key={child.id}>
-                                    <td>{child.name}</td>
+                                    <td>
+                                      <button
+                                        type="button"
+                                        className="budget-category-link"
+                                        onClick={() => openTransactionsForCategory(child.id)}
+                                      >
+                                        {child.name}
+                                      </button>
+                                    </td>
                                     <td>{formatCurrency(child.budget)}</td>
                                     <td>{formatCurrency(child.actual)}</td>
                                     <td>{formatCurrency(child.difference)}</td>
@@ -864,19 +991,74 @@ export default function AdminBudgetPage() {
                   számolódnak.
                 </p>
 
+                <div className="budget-filter-bar">
+                  <div className="budget-filter-control">
+                    <button
+                      type="button"
+                      className="budget-filter-trigger"
+                      aria-expanded={isFilterOpen}
+                      onClick={() => (isFilterOpen ? setIsFilterOpen(false) : openCategoryFilter())}
+                    >
+                      {appliedCategoryFilter.length === 0
+                        ? 'Szűrés kategória szerint'
+                        : `Szűrve: ${appliedCategoryFilter.length} kategória`}
+                    </button>
+
+                    {isFilterOpen && (
+                      <div className="budget-filter-dropdown" role="dialog" aria-label="Kategória szűrő">
+                        <p>Válassz egy vagy több kategóriát, majd OK.</p>
+                        <div className="budget-filter-options">
+                          {leafCategories.length === 0 ? (
+                            <p>Nincs választható kategória.</p>
+                          ) : (
+                            leafCategories.map((category) => {
+                              const checked = draftCategoryFilter.includes(category.id)
+
+                              return (
+                                <label key={category.id}>
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => toggleDraftFilterCategory(category.id)}
+                                  />
+                                  <span>{getCategoryLabel(category.id, categories)}</span>
+                                </label>
+                              )
+                            })
+                          )}
+                        </div>
+                        <div className="budget-filter-actions">
+                          <button type="button" onClick={applyCategoryFilter}>
+                            OK
+                          </button>
+                          <button type="button" onClick={clearCategoryFilter}>
+                            Összes
+                          </button>
+                          <button type="button" onClick={() => setIsFilterOpen(false)}>
+                            Mégse
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {appliedCategoryFilter.length > 0 && (
+                    <p className="budget-filter-summary">
+                      Megjelenítve:{' '}
+                      {appliedCategoryFilter
+                        .map((id) => getCategoryLabel(id, categories))
+                        .join(', ')}
+                    </p>
+                  )}
+                </div>
+
                 <div className="admin-actions">
                   {!isEditingTransactions ? (
                     <>
                       <button type="button" onClick={startTransactionEditing}>
                         Tranzakciók szerkesztése
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          startTransactionEditing()
-                          addTransaction()
-                        }}
-                      >
+                      <button type="button" onClick={openAddTransactionModal}>
                         Új tranzakció hozzáadása
                       </button>
                     </>
@@ -896,7 +1078,7 @@ export default function AdminBudgetPage() {
                       >
                         Módosítások elvetése
                       </button>
-                      <button type="button" onClick={addTransaction}>
+                      <button type="button" onClick={openAddTransactionModal}>
                         Új tranzakció hozzáadása
                       </button>
                     </>
@@ -915,12 +1097,16 @@ export default function AdminBudgetPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {transactions.length === 0 ? (
+                      {filteredTransactions.length === 0 ? (
                         <tr>
-                          <td colSpan={isEditingTransactions ? 5 : 4}>Még nincs tranzakció.</td>
+                          <td colSpan={isEditingTransactions ? 5 : 4}>
+                            {transactions.length === 0
+                              ? 'Még nincs tranzakció.'
+                              : 'Nincs a szűrésnek megfelelő tranzakció.'}
+                          </td>
                         </tr>
                       ) : (
-                        transactions.map((transaction) => (
+                        filteredTransactions.map((transaction) => (
                           <tr key={transaction.id}>
                             <td>
                               {isEditingTransactions ? (
@@ -1017,6 +1203,84 @@ export default function AdminBudgetPage() {
               </>
             )}
           </>
+        )}
+
+        {isAddModalOpen && newTransaction && (
+          <div
+            className="budget-modal-backdrop"
+            role="presentation"
+            onClick={closeAddTransactionModal}
+          >
+            <div
+              className="budget-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="budget-new-transaction-title"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <h2 id="budget-new-transaction-title">Új tranzakció</h2>
+
+              <label>
+                Dátum
+                <input
+                  type="date"
+                  value={newTransaction.transaction_date}
+                  onChange={(event) =>
+                    updateNewTransactionField('transaction_date', event.target.value)
+                  }
+                />
+              </label>
+
+              <label>
+                Kategória
+                <select
+                  value={newTransaction.category_id}
+                  onChange={(event) =>
+                    updateNewTransactionField('category_id', event.target.value)
+                  }
+                >
+                  <option value="">Válassz kategóriát</option>
+                  {leafCategories.map((category) => (
+                    <option value={category.id} key={category.id}>
+                      {getCategoryLabel(category.id, categories)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                Leírás
+                <input
+                  type="text"
+                  value={newTransaction.description}
+                  onChange={(event) =>
+                    updateNewTransactionField('description', event.target.value)
+                  }
+                  placeholder="Pl. foglaló, virágok..."
+                />
+              </label>
+
+              <label>
+                Összeg
+                <input
+                  type="number"
+                  min="0"
+                  step="1000"
+                  value={newTransaction.amount}
+                  onChange={(event) => updateNewTransactionField('amount', event.target.value)}
+                />
+              </label>
+
+              <div className="budget-modal-actions">
+                <button type="button" onClick={saveNewTransaction} disabled={isSubmitting}>
+                  {isSubmitting ? 'Mentés...' : 'Mentés'}
+                </button>
+                <button type="button" onClick={closeAddTransactionModal} disabled={isSubmitting}>
+                  Mégse
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         <p className="auth-switch">

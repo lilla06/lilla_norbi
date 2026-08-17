@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import {
+  buildInviteeToGuestNameMap,
+  clonePlanTables,
+  copySeatingPlannedToActual,
+} from '../lib/planAssignments'
 import { supabase } from '../lib/supabase'
 
 const defaultRoundTableCount = 13
@@ -20,7 +25,7 @@ function getGuestLabelClass(label) {
 }
 
 function cloneTables(tables) {
-  return tables.map((table) => ({ ...table, seats: [...table.seats] }))
+  return clonePlanTables(tables)
 }
 
 function createDefaultTables() {
@@ -98,10 +103,13 @@ function getSeatPosition(seatIndex, seatCount, tableType) {
 
 export default function AdminSeatingPage() {
   const navigate = useNavigate()
-  const [tables, setTables] = useState([])
-  const [savedTables, setSavedTables] = useState([])
-  const [guestNames, setGuestNames] = useState([])
-  const [guestResponses, setGuestResponses] = useState([])
+  const [planType, setPlanType] = useState('planned')
+  const [plannedTables, setPlannedTables] = useState([])
+  const [actualTables, setActualTables] = useState([])
+  const [savedPlannedTables, setSavedPlannedTables] = useState([])
+  const [savedActualTables, setSavedActualTables] = useState([])
+  const [invitees, setInvitees] = useState([])
+  const [guests, setGuests] = useState([])
   const [draggedGuest, setDraggedGuest] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   const [showLabelColors, setShowLabelColors] = useState(true)
@@ -109,6 +117,16 @@ export default function AdminSeatingPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [hasAccess, setHasAccess] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
+
+  const tables = planType === 'planned' ? plannedTables : actualTables
+
+  function setTables(value) {
+    if (planType === 'planned') {
+      setPlannedTables(value)
+    } else {
+      setActualTables(value)
+    }
+  }
 
   useEffect(() => {
     async function loadSeating() {
@@ -130,35 +148,48 @@ export default function AdminSeatingPage() {
 
       const [
         { data: guestData, error: guestError },
+        { data: inviteeData, error: inviteeError },
         { data: tableData, error: tableError },
         { data: assignmentData, error: assignmentError },
       ] = await Promise.all([
-        supabase.from('guests').select('name, response, label').order('name'),
+        supabase.from('guests').select('id, name, response, label').order('name'),
+        supabase.from('invitees').select('id, name, label, guest_id').order('name'),
         supabase
           .from('seating_tables')
           .select('table_key, name, capacity, table_type, display_order')
           .order('display_order'),
         supabase
           .from('seating_assignments')
-          .select('table_key, seat_index, guest_name')
+          .select('table_key, seat_index, guest_name, plan_type')
           .order('table_key'),
       ])
 
-      if (guestError || tableError || assignmentError) {
+      if (guestError || inviteeError || tableError || assignmentError) {
         setStatusMessage(
           `Nem sikerült betölteni az ülésrendet: ${
-            guestError?.message || tableError?.message || assignmentError?.message
+            guestError?.message ||
+            inviteeError?.message ||
+            tableError?.message ||
+            assignmentError?.message
           }`,
         )
       } else {
-        const loadedTables = tableData?.length
-          ? normalizeTables(tableData, assignmentData || [])
-          : createDefaultTables()
+        const baseTables = tableData?.length ? tableData : createDefaultTables()
+        const plannedAssignments = (assignmentData || []).filter(
+          (row) => (row.plan_type || 'actual') === 'planned',
+        )
+        const actualAssignments = (assignmentData || []).filter(
+          (row) => (row.plan_type || 'actual') === 'actual',
+        )
+        const loadedPlanned = normalizeTables(baseTables, plannedAssignments)
+        const loadedActual = normalizeTables(baseTables, actualAssignments)
 
-        setGuestResponses(guestData || [])
-        setGuestNames((guestData || []).filter((guest) => guest.response).map((guest) => guest.name))
-        setTables(loadedTables)
-        setSavedTables(cloneTables(loadedTables))
+        setGuests(guestData || [])
+        setInvitees(inviteeData || [])
+        setPlannedTables(loadedPlanned)
+        setActualTables(loadedActual)
+        setSavedPlannedTables(cloneTables(loadedPlanned))
+        setSavedActualTables(cloneTables(loadedActual))
       }
 
       setIsLoading(false)
@@ -167,26 +198,60 @@ export default function AdminSeatingPage() {
     loadSeating()
   }, [navigate])
 
+  const personNames =
+    planType === 'planned'
+      ? invitees.map((invitee) => invitee.name).filter(Boolean)
+      : guests.filter((guest) => guest.response).map((guest) => guest.name)
   const assignedGuests = tables.flatMap((table) => table.seats).filter(Boolean)
-  const availableGuests = guestNames
+  const availableGuests = personNames
     .filter((guest) => !assignedGuests.includes(guest))
     .sort((left, right) => left.localeCompare(right, 'hu'))
-  const guestResponseByName = new Map(guestResponses.map((guest) => [guest.name, guest.response]))
-  const guestLabelByName = new Map(guestResponses.map((guest) => [guest.name, guest.label]))
+  const labelSource =
+    planType === 'planned'
+      ? invitees.map((invitee) => ({ name: invitee.name, label: invitee.label }))
+      : guests.map((guest) => ({ name: guest.name, label: guest.label }))
+  const guestLabelByName = new Map(labelSource.map((item) => [item.name, item.label]))
+  const guestResponseByName = new Map(guests.map((guest) => [guest.name, guest.response]))
   const getVisibleGuestLabelClass = (guestName) =>
     showLabelColors ? getGuestLabelClass(guestLabelByName.get(guestName)) : ''
-  const seatingWarnings = tables.flatMap((table) =>
-    table.seats
-      .filter(Boolean)
-      .map((guestName) => ({
-        guestName,
-        tableName: table.name,
-      }))
-      .filter(({ guestName }) => guestResponseByName.get(guestName) !== true),
-  )
+  const seatingWarnings =
+    planType === 'actual'
+      ? tables.flatMap((table) =>
+          table.seats
+            .filter(Boolean)
+            .map((guestName) => ({
+              guestName,
+              tableName: table.name,
+            }))
+            .filter(({ guestName }) => guestResponseByName.get(guestName) !== true),
+        )
+      : []
+
+  function switchPlanType(nextType) {
+    if (nextType === planType) {
+      return
+    }
+
+    if (isEditing) {
+      const confirmed = window.confirm(
+        'Mentetlen módosítások elveszhetnek. Biztosan váltasz nézetet?',
+      )
+      if (!confirmed) {
+        return
+      }
+
+      setPlannedTables(cloneTables(savedPlannedTables))
+      setActualTables(cloneTables(savedActualTables))
+      setIsEditing(false)
+      setDraggedGuest('')
+    }
+
+    setPlanType(nextType)
+    setStatusMessage('')
+  }
 
   function updateTable(index, field, value) {
-    setTables((currentTables) =>
+    const apply = (currentTables) =>
       currentTables.map((table, tableIndex) => {
         if (tableIndex !== index) {
           return table
@@ -208,8 +273,10 @@ export default function AdminSeatingPage() {
         }
 
         return { ...table, [field]: value }
-      }),
-    )
+      })
+
+    setPlannedTables(apply)
+    setActualTables(apply)
   }
 
   function getDraggedGuest(event) {
@@ -271,13 +338,15 @@ export default function AdminSeatingPage() {
   }
 
   function startEditing() {
-    setSavedTables(cloneTables(tables))
+    setSavedPlannedTables(cloneTables(plannedTables))
+    setSavedActualTables(cloneTables(actualTables))
     setStatusMessage('')
     setIsEditing(true)
   }
 
   function discardChanges() {
-    setTables(cloneTables(savedTables))
+    setPlannedTables(cloneTables(savedPlannedTables))
+    setActualTables(cloneTables(savedActualTables))
     setDraggedGuest('')
     setStatusMessage('')
     setIsEditing(false)
@@ -305,41 +374,92 @@ export default function AdminSeatingPage() {
       return
     }
 
-    const { error: deleteError } = await supabase
-      .from('seating_assignments')
-      .delete()
-      .gte('seat_index', 0)
-
-    if (deleteError) {
+    const currentError = await persistSeatingPlan(planType, tables)
+    if (currentError) {
       setIsSubmitting(false)
-      setStatusMessage(`Nem sikerült frissíteni az ültetéseket: ${deleteError.message}`)
+      setStatusMessage(`Nem sikerült menteni az ültetéseket: ${currentError.message}`)
       return
     }
 
-    const assignmentRows = tables.flatMap((table) =>
+    const otherPlanType = planType === 'planned' ? 'actual' : 'planned'
+    const otherTables = planType === 'planned' ? actualTables : plannedTables
+    const otherError = await persistSeatingPlan(otherPlanType, otherTables)
+    if (otherError) {
+      setIsSubmitting(false)
+      setStatusMessage(
+        `Nem sikerült frissíteni a másik nézet ültetéseit: ${otherError.message}`,
+      )
+      return
+    }
+
+    setIsEditing(false)
+    setSavedPlannedTables(cloneTables(plannedTables))
+    setSavedActualTables(cloneTables(actualTables))
+    setIsSubmitting(false)
+    setStatusMessage(
+      planType === 'planned' ? 'A tervezett ülésrend mentve.' : 'A valós ülésrend mentve.',
+    )
+  }
+
+  async function persistSeatingPlan(targetPlanType, nextTables) {
+    const { error: deleteError } = await supabase
+      .from('seating_assignments')
+      .delete()
+      .eq('plan_type', targetPlanType)
+      .gte('seat_index', 0)
+
+    if (deleteError) {
+      return deleteError
+    }
+
+    const assignmentRows = nextTables.flatMap((table) =>
       table.seats
         .map((guestName, seatIndex) => ({
           table_key: table.table_key,
           seat_index: seatIndex,
           guest_name: guestName,
+          plan_type: targetPlanType,
         }))
         .filter((assignment) => assignment.guest_name),
     )
 
-    const { error: assignmentError } = assignmentRows.length
-      ? await supabase.from('seating_assignments').insert(assignmentRows)
-      : { error: null }
+    if (!assignmentRows.length) {
+      return null
+    }
 
-    setIsSubmitting(false)
+    const { error: assignmentError } = await supabase
+      .from('seating_assignments')
+      .insert(assignmentRows)
 
-    if (assignmentError) {
-      setStatusMessage(`Nem sikerült menteni az ültetéseket: ${assignmentError.message}`)
+    return assignmentError
+  }
+
+  async function transferLinkedToActual() {
+    if (isEditing) {
+      setStatusMessage('Előbb mentsd vagy vesd el a szerkesztést, mielőtt áttöltenél.')
       return
     }
 
-    setIsEditing(false)
-    setSavedTables(cloneTables(tables))
-    setStatusMessage('Az ülésrend mentve.')
+    const inviteeToGuest = buildInviteeToGuestNameMap(invitees, guests)
+    if (inviteeToGuest.size === 0) {
+      setStatusMessage('Nincs összekötött meghívott–visszajelzés pár az áttöltéshez.')
+      return
+    }
+
+    setIsSubmitting(true)
+    const nextActual = copySeatingPlannedToActual(plannedTables, actualTables, inviteeToGuest)
+    const persistError = await persistSeatingPlan('actual', nextActual)
+    setIsSubmitting(false)
+
+    if (persistError) {
+      setStatusMessage(`Nem sikerült áttölteni a valós ülésrendbe: ${persistError.message}`)
+      return
+    }
+
+    setActualTables(nextActual)
+    setSavedActualTables(cloneTables(nextActual))
+    setPlanType('actual')
+    setStatusMessage('Az összekötött meghívottak áttöltve a valós ülésrendbe.')
   }
 
   if (isLoading) {
@@ -376,12 +496,45 @@ export default function AdminSeatingPage() {
 
         {hasAccess && (
           <div>
+            <div className="admin-view-tabs" role="tablist" aria-label="Ülésrend nézetek">
+              <button
+                type="button"
+                role="tab"
+                className={planType === 'planned' ? 'is-active' : ''}
+                aria-selected={planType === 'planned'}
+                onClick={() => switchPlanType('planned')}
+              >
+                Tervezett
+              </button>
+              <button
+                type="button"
+                role="tab"
+                className={planType === 'actual' ? 'is-active' : ''}
+                aria-selected={planType === 'actual'}
+                onClick={() => switchPlanType('actual')}
+              >
+                Valós
+              </button>
+            </div>
+
+            <p className="admin-summary">
+              {planType === 'planned'
+                ? 'Tervezett nézet: a meghívottak listájából ültetsz.'
+                : 'Valós nézet: a visszajelzett (jön) vendégekből ültetsz.'}
+            </p>
+
             <div className="admin-actions">
               <button type="button" onClick={() => setShowLabelColors((current) => !current)}>
                 {showLabelColors
                   ? 'Kategória szerinti színezés kikapcsolása'
                   : 'Kategória szerinti színezés bekapcsolása'}
               </button>
+
+              {!isEditing && (
+                <button type="button" onClick={transferLinkedToActual} disabled={isSubmitting}>
+                  Áttöltés tervezettből
+                </button>
+              )}
 
               {!isEditing ? (
                 <button type="button" onClick={startEditing}>
@@ -403,9 +556,13 @@ export default function AdminSeatingPage() {
               <div className="seating-circle">
                 {isEditing && (
                   <aside className="guest-palette">
-                    <h2>Vendégek</h2>
+                    <h2>{planType === 'planned' ? 'Meghívottak' : 'Vendégek'}</h2>
                     {availableGuests.length === 0 ? (
-                      <p>Minden visszajelzett vendég kapott helyet.</p>
+                      <p>
+                        {planType === 'planned'
+                          ? 'Minden meghívott kapott helyet.'
+                          : 'Minden visszajelzett vendég kapott helyet.'}
+                      </p>
                     ) : (
                       availableGuests.map((guest) => (
                         <button
