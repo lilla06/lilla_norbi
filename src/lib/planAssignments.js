@@ -9,6 +9,79 @@ export function clonePlanRooms(rooms) {
   }))
 }
 
+/** A beosztatlan személyek listája: egyforma nevek külön sorban, saját címkével. */
+export function buildAvailablePeople(people, assignedNames) {
+  const seatedCounts = assignedNames
+    .filter(Boolean)
+    .reduce((counts, name) => counts.set(name, (counts.get(name) || 0) + 1), new Map())
+  const remainingToSkip = new Map(seatedCounts)
+  const available = []
+
+  people.forEach((person, index) => {
+    const name = person?.name
+    if (!name) {
+      return
+    }
+
+    const skip = remainingToSkip.get(name) || 0
+    if (skip > 0) {
+      remainingToSkip.set(name, skip - 1)
+      return
+    }
+
+    available.push({
+      key: `${person.id ?? name}-${index}`,
+      name,
+      label: person.label || '',
+    })
+  })
+
+  return available.sort((left, right) => {
+    const byName = left.name.localeCompare(right.name, 'hu')
+    if (byName !== 0) {
+      return byName
+    }
+
+    return String(left.label).localeCompare(String(right.label), 'hu')
+  })
+}
+
+/** Egyforma neveknél sorban adja a címkéket (1. előfordulás → 1. személy címkéje). */
+export function createLabelAssigner(people) {
+  const labelsByName = new Map()
+
+  people.forEach((person) => {
+    const name = person?.name
+    if (!name) {
+      return
+    }
+
+    const labels = labelsByName.get(name)
+    if (labels) {
+      labels.push(person.label || '')
+    } else {
+      labelsByName.set(name, [person.label || ''])
+    }
+  })
+
+  const usedCounts = new Map()
+
+  return (name) => {
+    if (!name) {
+      return ''
+    }
+
+    const labels = labelsByName.get(name) || []
+    if (labels.length === 0) {
+      return ''
+    }
+
+    const used = usedCounts.get(name) || 0
+    usedCounts.set(name, used + 1)
+    return labels[Math.min(used, labels.length - 1)] || ''
+  }
+}
+
 /** meghívott név -> összekötött vendég nevek listája (egy név több emberhez is tartozhat) */
 export function buildInviteeToGuestNameMap(invitees, guests) {
   const guestById = new Map(guests.map((guest) => [String(guest.id), guest]))

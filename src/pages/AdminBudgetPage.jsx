@@ -1115,6 +1115,9 @@ export default function AdminBudgetPage() {
                       <button type="button" onClick={openAddTransactionModal}>
                         Új tranzakció hozzáadása
                       </button>
+                      <button type="button" onClick={() => setViewMode('summary')}>
+                        Vissza a költségvetéshez
+                      </button>
                     </>
                   ) : (
                     <>
@@ -1405,7 +1408,19 @@ export default function AdminBudgetPage() {
         )}
 
         <p className="auth-switch">
-          <Link to="/admin">Vissza a vendéglistához</Link>
+          {viewMode === 'summary' ? (
+            <Link to="/admin">Vissza a vendéglistához</Link>
+          ) : (
+            <a
+              href="#budget-summary"
+              onClick={(event) => {
+                event.preventDefault()
+                setViewMode('summary')
+              }}
+            >
+              Vissza a költségvetéshez
+            </a>
+          )}
         </p>
       </section>
     </main>

@@ -3241,6 +3241,7 @@ p {
 
 .guest-palette button.guest-label-lilla-family,
 .seat.is-occupied.guest-label-lilla-family,
+.room-drop-zone.is-occupied.guest-label-lilla-family,
 .seating-summary-guest.guest-label-lilla-family {
   color: #24351f;
   background: #d7c8a7;
@@ -3249,6 +3250,7 @@ p {
 
 .guest-palette button.guest-label-lilla-friend,
 .seat.is-occupied.guest-label-lilla-friend,
+.room-drop-zone.is-occupied.guest-label-lilla-friend,
 .seating-summary-guest.guest-label-lilla-friend {
   color: #fff8e7;
   background: #50693d;
@@ -3257,6 +3259,7 @@ p {
 
 .guest-palette button.guest-label-common-friend,
 .seat.is-occupied.guest-label-common-friend,
+.room-drop-zone.is-occupied.guest-label-common-friend,
 .seating-summary-guest.guest-label-common-friend {
   color: #24351f;
   background: #c7d3a6;
@@ -3265,6 +3268,7 @@ p {
 
 .guest-palette button.guest-label-norbi-friend,
 .seat.is-occupied.guest-label-norbi-friend,
+.room-drop-zone.is-occupied.guest-label-norbi-friend,
 .seating-summary-guest.guest-label-norbi-friend {
   color: #fff8e7;
   background: #6a4a1c;
@@ -3273,6 +3277,7 @@ p {
 
 .guest-palette button.guest-label-norbi-family,
 .seat.is-occupied.guest-label-norbi-family,
+.room-drop-zone.is-occupied.guest-label-norbi-family,
 .seating-summary-guest.guest-label-norbi-family {
   color: #24351f;
   background: #e8dcc3;

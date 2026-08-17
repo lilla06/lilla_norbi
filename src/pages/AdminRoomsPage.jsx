@@ -2,14 +2,28 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import AdminModal from '../components/AdminModal'
 import {
+  buildAvailablePeople,
   buildInviteeToGuestNameMap,
   clonePlanRooms,
   copyRoomsPlannedToActual,
+  createLabelAssigner,
 } from '../lib/planAssignments'
 import { supabase } from '../lib/supabase'
 
+const guestLabelClasses = {
+  'Lilla család': 'guest-label-lilla-family',
+  'Lilla barát': 'guest-label-lilla-friend',
+  'Közös barát': 'guest-label-common-friend',
+  'Norbi barát': 'guest-label-norbi-friend',
+  'Norbi család': 'guest-label-norbi-family',
+}
+
 function isAdmin(user) {
   return user?.app_metadata?.role === 'admin'
+}
+
+function getGuestLabelClass(label) {
+  return guestLabelClasses[label] || ''
 }
 
 function createRoom(displayOrder = 0) {
@@ -204,7 +218,7 @@ export default function AdminRoomsPage() {
         { data: roomData, error: roomError },
         { data: assignmentData, error: assignmentError },
       ] = await Promise.all([
-        supabase.from('guests').select('id, name, response').order('name'),
+        supabase.from('guests').select('id, name, response, label').order('name'),
         supabase.from('invitees').select('id, name, label, guest_id').order('name'),
         supabase
           .from('accommodation_rooms')
@@ -252,23 +266,39 @@ export default function AdminRoomsPage() {
     loadRooms()
   }, [navigate])
 
-  const personNames =
+  const people =
     planType === 'planned'
-      ? invitees.map((invitee) => invitee.name).filter(Boolean)
-      : guests.filter((guest) => guest.response).map((guest) => guest.name)
+      ? invitees.filter((invitee) => invitee.name)
+      : guests.filter((guest) => guest.response && guest.name)
+  const personNames = people.map((person) => person.name)
   // Ugyanaz a nev tobb emberhez is tartozhat, ezert nevenkent szamoljuk a fero szemelyeket
   const nameTotals = personNames.reduce(
     (totals, name) => totals.set(name, (totals.get(name) || 0) + 1),
     new Map(),
   )
-  const assignedCounts = rooms
-    .flatMap((room) => Object.values(room.assignments))
-    .filter(Boolean)
-    .reduce((counts, name) => counts.set(name, (counts.get(name) || 0) + 1), new Map())
-  const availableGuests = [...nameTotals.entries()]
-    .map(([name, total]) => ({ name, remaining: total - (assignedCounts.get(name) || 0) }))
-    .filter((item) => item.remaining > 0)
-    .sort((left, right) => left.name.localeCompare(right.name, 'hu'))
+  const assignedNames = rooms.flatMap((room) => Object.values(room.assignments)).filter(Boolean)
+  const assignedCounts = assignedNames.reduce(
+    (counts, name) => counts.set(name, (counts.get(name) || 0) + 1),
+    new Map(),
+  )
+  const availableGuests = buildAvailablePeople(people, assignedNames)
+  const takeAssignmentLabel = createLabelAssigner(people)
+  const assignmentLabelByRoom = rooms.map((room) => {
+    const labels = {}
+
+    getBedSlots(room).forEach((bed) => {
+      for (let slotIndex = 0; slotIndex < bed.slotCount; slotIndex += 1) {
+        const assignmentKey = `${bed.bedKey}:${slotIndex}`
+        const guestName = room.assignments[assignmentKey]
+
+        if (guestName) {
+          labels[assignmentKey] = takeAssignmentLabel(guestName)
+        }
+      }
+    })
+
+    return labels
+  })
   const duplicateWarnings = [...assignedCounts.entries()]
     .filter(([name, count]) => nameTotals.has(name) && count > nameTotals.get(name))
     .map(([name, count]) => ({ name, count, total: nameTotals.get(name) || 0 }))
@@ -839,18 +869,19 @@ export default function AdminRoomsPage() {
                         : 'Minden visszajelzett vendég kapott szobát.'}
                     </p>
                   ) : (
-                    availableGuests.map(({ name, remaining }) => (
+                    availableGuests.map(({ key, name, label }) => (
                       <button
                         draggable
                         type="button"
-                        key={name}
+                        className={getGuestLabelClass(label)}
+                        key={key}
                         onDragStart={(event) => {
                           event.dataTransfer.setData('text/plain', name)
                           event.dataTransfer.effectAllowed = 'move'
                           setDraggedGuest(name)
                         }}
                       >
-                        {remaining > 1 ? `${name} (${remaining} fő)` : name}
+                        {name}
                       </button>
                     ))
                   )}
@@ -876,7 +907,9 @@ export default function AdminRoomsPage() {
                                   <button
                                     className={`room-drop-zone ${guestName ? 'is-occupied' : ''} ${
                                       bed.type === 'extra' ? 'is-extra-bed' : ''
-                                    }`}
+                                    } ${getGuestLabelClass(
+                                      assignmentLabelByRoom[roomIndex]?.[assignmentKey] || '',
+                                    )}`}
                                     type="button"
                                     key={assignmentKey}
                                     onClick={() => {
@@ -909,7 +942,7 @@ export default function AdminRoomsPage() {
                 {rooms.length === 0 ? (
                   <p className="admin-summary">Még nincs szoba megadva.</p>
                 ) : (
-                  rooms.map((room) => {
+                  rooms.map((room, roomIndex) => {
                     const assignedRoomGuests = Object.values(room.assignments).filter(Boolean)
 
                     return (
@@ -929,9 +962,19 @@ export default function AdminRoomsPage() {
                           <p>Nincs még vendég ebbe a szobába beosztva.</p>
                         ) : (
                           <ul>
-                            {assignedRoomGuests.map((guestName) => (
-                              <li key={`${room.room_key}-${guestName}`}>{guestName}</li>
-                            ))}
+                            {Object.entries(room.assignments)
+                              .filter(([, guestName]) => guestName)
+                              .map(([assignmentKey, guestName]) => (
+                                <li key={`${room.room_key}-${assignmentKey}`}>
+                                  <span
+                                    className={`seating-summary-guest ${getGuestLabelClass(
+                                      assignmentLabelByRoom[roomIndex]?.[assignmentKey] || '',
+                                    )}`}
+                                  >
+                                    {guestName}
+                                  </span>
+                                </li>
+                              ))}
                           </ul>
                         )}
                       </article>
