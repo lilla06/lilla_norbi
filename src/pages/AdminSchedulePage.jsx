@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import AdminModal from '../components/AdminModal'
 import { supabase } from '../lib/supabase'
 
 const timeOptions = Array.from({ length: 96 }, (_, index) => {
@@ -56,6 +57,8 @@ export default function AdminSchedulePage() {
   const [statusMessage, setStatusMessage] = useState('')
   const [isPublished, setIsPublished] = useState(false)
   const [isPublishSaving, setIsPublishSaving] = useState(false)
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const [newItem, setNewItem] = useState(null)
 
   useEffect(() => {
     async function loadSchedule() {
@@ -145,7 +148,53 @@ export default function AdminSchedulePage() {
   }
 
   function addScheduleItem() {
-    setScheduleItems((currentItems) => [...currentItems, createScheduleItem()])
+    setNewItem(createScheduleItem())
+    setIsAddModalOpen(true)
+    setStatusMessage('')
+  }
+
+  function closeAddModal() {
+    setIsAddModalOpen(false)
+    setNewItem(null)
+  }
+
+  function updateNewItem(field, value) {
+    setNewItem((current) => (current ? { ...current, [field]: value } : current))
+  }
+
+  async function saveNewScheduleItem() {
+    if (!newItem) {
+      return
+    }
+
+    const title = newItem.title.trim()
+    if (!title) {
+      setStatusMessage('Az új menetrendi ponthoz kell címet adni.')
+      return
+    }
+
+    const row = {
+      event_time: newItem.event_time,
+      end_time: newItem.end_time,
+      title,
+      is_public: Boolean(newItem.is_public),
+    }
+
+    setIsSubmitting(true)
+    setStatusMessage('')
+
+    const { error } = await supabase.from('schedule_items').insert(row)
+    setIsSubmitting(false)
+
+    if (error) {
+      setStatusMessage(`Nem sikerült hozzáadni a menetrendi pontot: ${error.message}`)
+      return
+    }
+
+    setScheduleItems((current) => sortScheduleItems([...current, row]))
+    setSavedScheduleItems((current) => sortScheduleItems([...current, row]))
+    closeAddModal()
+    setStatusMessage('Az új menetrendi pont mentve.')
   }
 
   function removeScheduleItem(index) {
@@ -253,6 +302,9 @@ export default function AdminSchedulePage() {
             {!isEditing ? (
               <>
                 <div className="admin-actions">
+                  <button type="button" onClick={addScheduleItem}>
+                    Új menetrendi pont
+                  </button>
                   <button type="button" onClick={startEditing}>
                     Szerkesztés
                   </button>
@@ -377,6 +429,72 @@ export default function AdminSchedulePage() {
               </div>
             )}
           </>
+        )}
+
+        {isAddModalOpen && newItem && (
+          <AdminModal
+            title="Új menetrendi pont"
+            titleId="schedule-new-item-title"
+            onClose={closeAddModal}
+            actions={
+              <>
+                <button type="button" onClick={saveNewScheduleItem} disabled={isSubmitting}>
+                  {isSubmitting ? 'Mentés...' : 'Mentés'}
+                </button>
+                <button type="button" onClick={closeAddModal} disabled={isSubmitting}>
+                  Mégse
+                </button>
+              </>
+            }
+          >
+            <label>
+              Kezdés
+              <select
+                value={newItem.event_time}
+                onChange={(event) => updateNewItem('event_time', event.target.value)}
+              >
+                {timeOptions.map((time) => (
+                  <option key={time} value={time}>
+                    {time}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              Vége
+              <select
+                value={newItem.end_time}
+                onChange={(event) => updateNewItem('end_time', event.target.value)}
+              >
+                {timeOptions.map((time) => (
+                  <option key={time} value={time}>
+                    {time}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              Esemény
+              <input
+                type="text"
+                value={newItem.title}
+                onChange={(event) => updateNewItem('title', event.target.value)}
+                placeholder="Például: Szertartás"
+                autoFocus
+              />
+            </label>
+
+            <label className="budget-modal-checkbox">
+              <input
+                type="checkbox"
+                checked={newItem.is_public}
+                onChange={(event) => updateNewItem('is_public', event.target.checked)}
+              />
+              <span>Publikus (látszik a kezdőlapon)</span>
+            </label>
+          </AdminModal>
         )}
 
         <Link className="text-link" to="/">Vissza a főoldalra</Link>

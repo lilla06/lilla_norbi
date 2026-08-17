@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import AdminModal from '../components/AdminModal'
 import { supabase } from '../lib/supabase'
 import {
   DEFAULT_TASK_TIMING,
@@ -51,6 +52,16 @@ export default function AdminTasksPage() {
   const [statusMessage, setStatusMessage] = useState('')
   const [savingTaskId, setSavingTaskId] = useState(null)
   const [isCreating, setIsCreating] = useState(false)
+  const [isAddTaskOpen, setIsAddTaskOpen] = useState(false)
+  const [newTaskDraft, setNewTaskDraft] = useState({
+    title: '',
+    timing: DEFAULT_TASK_TIMING,
+    progress: 0,
+    notes: '',
+    assigneeIds: [],
+    subtasks: [],
+    materials: [],
+  })
   const [expandedTaskIds, setExpandedTaskIds] = useState(() => new Set())
   // Szurt nezetben a talalatok alapbol nyitva vannak, itt csak a kezzel becsukottakat tartjuk
   const [collapsedFilteredTaskIds, setCollapsedFilteredTaskIds] = useState(() => new Set())
@@ -360,37 +371,298 @@ export default function AdminTasksPage() {
     )
   }
 
+  function createEmptyTaskDraft() {
+    return {
+      title: '',
+      timing: DEFAULT_TASK_TIMING,
+      progress: 0,
+      notes: '',
+      assigneeIds: [],
+      subtasks: [],
+      materials: [],
+    }
+  }
+
+  function openAddTaskModal() {
+    setNewTaskDraft(createEmptyTaskDraft())
+    setIsAddTaskOpen(true)
+    setStatusMessage('')
+  }
+
+  function closeAddTaskModal() {
+    setIsAddTaskOpen(false)
+    setNewTaskDraft(createEmptyTaskDraft())
+  }
+
+  function updateNewTaskDraft(field, value) {
+    setNewTaskDraft((current) => ({ ...current, [field]: value }))
+  }
+
+  function toggleNewTaskAssignee(userId) {
+    setNewTaskDraft((current) => ({
+      ...current,
+      assigneeIds: current.assigneeIds.includes(userId)
+        ? current.assigneeIds.filter((id) => id !== userId)
+        : [...current.assigneeIds, userId],
+    }))
+  }
+
+  function addDraftSubtask() {
+    setNewTaskDraft((current) => ({
+      ...current,
+      subtasks: [
+        ...current.subtasks,
+        {
+          key: crypto.randomUUID(),
+          title: '',
+          timing: DEFAULT_TASK_TIMING,
+          progress: 0,
+          assigneeIds: [],
+        },
+      ],
+    }))
+  }
+
+  function updateDraftSubtask(key, field, value) {
+    setNewTaskDraft((current) => ({
+      ...current,
+      subtasks: current.subtasks.map((subtask) =>
+        subtask.key === key ? { ...subtask, [field]: value } : subtask,
+      ),
+    }))
+  }
+
+  function toggleDraftSubtaskAssignee(key, userId) {
+    setNewTaskDraft((current) => ({
+      ...current,
+      subtasks: current.subtasks.map((subtask) => {
+        if (subtask.key !== key) {
+          return subtask
+        }
+
+        return {
+          ...subtask,
+          assigneeIds: subtask.assigneeIds.includes(userId)
+            ? subtask.assigneeIds.filter((id) => id !== userId)
+            : [...subtask.assigneeIds, userId],
+        }
+      }),
+    }))
+  }
+
+  function removeDraftSubtask(key) {
+    setNewTaskDraft((current) => ({
+      ...current,
+      subtasks: current.subtasks.filter((subtask) => subtask.key !== key),
+    }))
+  }
+
+  function addDraftMaterial() {
+    setNewTaskDraft((current) => ({
+      ...current,
+      materials: [
+        ...current.materials,
+        {
+          key: crypto.randomUUID(),
+          name: '',
+          source: '',
+          estimated_price: '',
+          is_acquired: false,
+        },
+      ],
+    }))
+  }
+
+  function updateDraftMaterial(key, field, value) {
+    setNewTaskDraft((current) => ({
+      ...current,
+      materials: current.materials.map((material) =>
+        material.key === key ? { ...material, [field]: value } : material,
+      ),
+    }))
+  }
+
+  function removeDraftMaterial(key) {
+    setNewTaskDraft((current) => ({
+      ...current,
+      materials: current.materials.filter((material) => material.key !== key),
+    }))
+  }
+
   async function createTask() {
+    const title = newTaskDraft.title.trim()
+    if (!title) {
+      setStatusMessage('Az új feladathoz kell címet adni.')
+      return
+    }
+
+    const invalidSubtask = newTaskDraft.subtasks.find((subtask) => !subtask.title.trim())
+    if (invalidSubtask) {
+      setStatusMessage('Minden alfeladatnak kell címet adni, vagy töröld az üreseket.')
+      return
+    }
+
+    const invalidMaterial = newTaskDraft.materials.find((material) => !material.name.trim())
+    if (invalidMaterial) {
+      setStatusMessage('Minden alapanyagnak kell nevet adni, vagy töröld az üreseket.')
+      return
+    }
+
     setIsCreating(true)
     setStatusMessage('')
 
+    const hasSubtasks = newTaskDraft.subtasks.length > 0
+    const parentProgress = hasSubtasks
+      ? averageProgress(newTaskDraft.subtasks)
+      : clampProgress(newTaskDraft.progress)
     const sortOrder =
       topLevelTasks.reduce((max, task) => Math.max(max, task.sort_order || 0), 0) + 1
 
-    const { data, error } = await supabase
+    const { data: parent, error: parentError } = await supabase
       .from('wedding_tasks')
       .insert({
-        title: 'Új feladat',
-        progress: 0,
-        notes: '',
-        timing: DEFAULT_TASK_TIMING,
+        title,
+        progress: parentProgress,
+        notes: newTaskDraft.notes.trim(),
+        timing: normalizeTaskTiming(newTaskDraft.timing),
         sort_order: sortOrder,
       })
       .select('id, parent_id, title, progress, notes, timing, sort_order')
       .single()
 
-    setIsCreating(false)
-
-    if (error) {
-      setStatusMessage(`Nem sikerült létrehozni a feladatot: ${error.message}`)
+    if (parentError) {
+      setIsCreating(false)
+      setStatusMessage(`Nem sikerült létrehozni a feladatot: ${parentError.message}`)
       return
+    }
+
+    const nextAssigneesByTask = { ...assigneesByTask }
+
+    if (!hasSubtasks && newTaskDraft.assigneeIds.length > 0) {
+      const { error: assigneeError } = await supabase.from('wedding_task_assignees').insert(
+        newTaskDraft.assigneeIds.map((userId) => ({
+          task_id: parent.id,
+          user_id: userId,
+        })),
+      )
+
+      if (assigneeError) {
+        setIsCreating(false)
+        setStatusMessage(
+          `A feladat létrejött, de a hozzárendelés mentése nem sikerült: ${assigneeError.message}`,
+        )
+        setTasks((current) => [
+          ...current,
+          { ...parent, timing: normalizeTaskTiming(parent.timing) },
+        ])
+        closeAddTaskModal()
+        return
+      }
+
+      nextAssigneesByTask[parent.id] = [...newTaskDraft.assigneeIds]
+    } else {
+      nextAssigneesByTask[parent.id] = []
+    }
+
+    const createdSubtasks = []
+
+    for (const [index, subtask] of newTaskDraft.subtasks.entries()) {
+      const { data: child, error: childError } = await supabase
+        .from('wedding_tasks')
+        .insert({
+          parent_id: parent.id,
+          title: subtask.title.trim(),
+          progress: clampProgress(subtask.progress),
+          notes: '',
+          timing: normalizeTaskTiming(subtask.timing),
+          sort_order: index + 1,
+        })
+        .select('id, parent_id, title, progress, notes, timing, sort_order')
+        .single()
+
+      if (childError) {
+        setIsCreating(false)
+        setStatusMessage(
+          `A feladat létrejött, de egy alfeladat mentése nem sikerült: ${childError.message}`,
+        )
+        setTasks((current) => [
+          ...current,
+          { ...parent, timing: normalizeTaskTiming(parent.timing) },
+          ...createdSubtasks,
+        ])
+        setAssigneesByTask(nextAssigneesByTask)
+        closeAddTaskModal()
+        return
+      }
+
+      const normalizedChild = { ...child, timing: normalizeTaskTiming(child.timing) }
+      createdSubtasks.push(normalizedChild)
+
+      if (subtask.assigneeIds.length > 0) {
+        const { error: childAssigneeError } = await supabase.from('wedding_task_assignees').insert(
+          subtask.assigneeIds.map((userId) => ({
+            task_id: child.id,
+            user_id: userId,
+          })),
+        )
+
+        if (childAssigneeError) {
+          setIsCreating(false)
+          setStatusMessage(
+            `Az alfeladat létrejött, de a hozzárendelés mentése nem sikerült: ${childAssigneeError.message}`,
+          )
+          nextAssigneesByTask[child.id] = []
+          setTasks((current) => [
+            ...current,
+            { ...parent, timing: normalizeTaskTiming(parent.timing) },
+            ...createdSubtasks,
+          ])
+          setAssigneesByTask(nextAssigneesByTask)
+          closeAddTaskModal()
+          return
+        }
+
+        nextAssigneesByTask[child.id] = [...subtask.assigneeIds]
+      } else {
+        nextAssigneesByTask[child.id] = []
+      }
+    }
+
+    for (const [index, material] of newTaskDraft.materials.entries()) {
+      const { error: materialError } = await supabase.from('wedding_task_materials').insert({
+        task_id: parent.id,
+        name: material.name.trim(),
+        source: material.source.trim(),
+        estimated_price: Number(material.estimated_price) || 0,
+        is_acquired: Boolean(material.is_acquired),
+        sort_order: index + 1,
+      })
+
+      if (materialError) {
+        setIsCreating(false)
+        setStatusMessage(
+          `A feladat létrejött, de egy alapanyag mentése nem sikerült: ${materialError.message}`,
+        )
+        setTasks((current) => [
+          ...current,
+          { ...parent, timing: normalizeTaskTiming(parent.timing) },
+          ...createdSubtasks,
+        ])
+        setAssigneesByTask(nextAssigneesByTask)
+        closeAddTaskModal()
+        return
+      }
     }
 
     setTasks((current) => [
       ...current,
-      { ...data, timing: normalizeTaskTiming(data.timing) },
+      { ...parent, timing: normalizeTaskTiming(parent.timing) },
+      ...createdSubtasks,
     ])
-    navigate(`/admin/tasks/${data.id}`)
+    setAssigneesByTask(nextAssigneesByTask)
+    setIsCreating(false)
+    closeAddTaskModal()
+    setStatusMessage('Az új feladat mentve.')
   }
 
   async function saveProgress(taskId, progress) {
@@ -504,8 +776,8 @@ export default function AdminTasksPage() {
         {hasAccess && (
           <>
             <div className="admin-actions task-list-toolbar">
-              <button type="button" onClick={createTask} disabled={isCreating}>
-                {isCreating ? 'Létrehozás...' : 'Új feladat'}
+              <button type="button" onClick={openAddTaskModal} disabled={isCreating}>
+                Új feladat
               </button>
               <label className="task-search-field">
                 <span>Keresés</span>
@@ -711,6 +983,258 @@ export default function AdminTasksPage() {
               </table>
             </div>
           </>
+        )}
+
+        {isAddTaskOpen && (
+          <AdminModal
+            title="Új feladat"
+            titleId="tasks-new-task-title"
+            className="is-wide"
+            onClose={closeAddTaskModal}
+            actions={
+              <>
+                <button type="button" onClick={createTask} disabled={isCreating}>
+                  {isCreating ? 'Mentés...' : 'Mentés'}
+                </button>
+                <button type="button" onClick={closeAddTaskModal} disabled={isCreating}>
+                  Mégse
+                </button>
+              </>
+            }
+          >
+            {statusMessage && <p className="form-message">{statusMessage}</p>}
+
+            <label>
+              Feladat neve
+              <input
+                type="text"
+                value={newTaskDraft.title}
+                onChange={(event) => updateNewTaskDraft('title', event.target.value)}
+                placeholder="Pl. Meghívók nyomtatása"
+                autoFocus
+              />
+            </label>
+
+            <label>
+              Időzítés
+              <select
+                value={newTaskDraft.timing}
+                onChange={(event) => updateNewTaskDraft('timing', event.target.value)}
+              >
+                {TASK_TIMING_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {newTaskDraft.subtasks.length === 0 ? (
+              <label>
+                Készültség (%)
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={newTaskDraft.progress}
+                  onChange={(event) => updateNewTaskDraft('progress', event.target.value)}
+                />
+              </label>
+            ) : (
+              <p className="admin-summary">
+                Készültség: a mentéskor az alfeladatok átlaga lesz (
+                {averageProgress(newTaskDraft.subtasks)}%).
+              </p>
+            )}
+
+            {newTaskDraft.subtasks.length === 0 ? (
+              <div className="budget-modal-section">
+                <h3>Hozzárendelve</h3>
+                <div className="budget-modal-assignees">
+                  {adminProfiles.length === 0 ? (
+                    <span>Nincs elérhető admin profil.</span>
+                  ) : (
+                    adminProfiles.map((profile) => (
+                      <label key={profile.user_id}>
+                        <input
+                          type="checkbox"
+                          checked={newTaskDraft.assigneeIds.includes(profile.user_id)}
+                          onChange={() => toggleNewTaskAssignee(profile.user_id)}
+                        />
+                        <span>{profile.display_name}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </div>
+            ) : (
+              <p className="admin-summary">
+                Ha vannak alfeladatok, a hozzárendelés az alfeladatoknál adható meg.
+              </p>
+            )}
+
+            <label>
+              Megjegyzések
+              <textarea
+                value={newTaskDraft.notes}
+                onChange={(event) => updateNewTaskDraft('notes', event.target.value)}
+                placeholder="Ide írhatod a feladat részleteit, döntéseket, teendőket..."
+              />
+            </label>
+
+            <div className="budget-modal-section">
+              <div className="budget-modal-section-head">
+                <h3>Alfeladatok</h3>
+                <button type="button" onClick={addDraftSubtask}>
+                  Alfeladat hozzáadása
+                </button>
+              </div>
+
+              {newTaskDraft.subtasks.length === 0 ? (
+                <p className="admin-summary">Még nincs alfeladat.</p>
+              ) : (
+                <div className="budget-modal-draft-list">
+                  {newTaskDraft.subtasks.map((subtask) => (
+                    <div className="budget-modal-draft-card" key={subtask.key}>
+                      <label>
+                        Név
+                        <input
+                          type="text"
+                          value={subtask.title}
+                          onChange={(event) =>
+                            updateDraftSubtask(subtask.key, 'title', event.target.value)
+                          }
+                          placeholder="Alfeladat neve"
+                        />
+                      </label>
+                      <div className="budget-modal-row">
+                        <label>
+                          Időzítés
+                          <select
+                            value={subtask.timing}
+                            onChange={(event) =>
+                              updateDraftSubtask(subtask.key, 'timing', event.target.value)
+                            }
+                          >
+                            {TASK_TIMING_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>
+                          Készültség (%)
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={subtask.progress}
+                            onChange={(event) =>
+                              updateDraftSubtask(subtask.key, 'progress', event.target.value)
+                            }
+                          />
+                        </label>
+                      </div>
+                      <div>
+                        <span>Hozzárendelve</span>
+                        <div className="budget-modal-assignees">
+                          {adminProfiles.map((profile) => (
+                            <label key={`${subtask.key}-${profile.user_id}`}>
+                              <input
+                                type="checkbox"
+                                checked={subtask.assigneeIds.includes(profile.user_id)}
+                                onChange={() =>
+                                  toggleDraftSubtaskAssignee(subtask.key, profile.user_id)
+                                }
+                              />
+                              <span>{profile.display_name}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      <button type="button" onClick={() => removeDraftSubtask(subtask.key)}>
+                        Alfeladat törlése
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="budget-modal-section">
+              <div className="budget-modal-section-head">
+                <h3>Alapanyagok</h3>
+                <button type="button" onClick={addDraftMaterial}>
+                  Alapanyag hozzáadása
+                </button>
+              </div>
+
+              {newTaskDraft.materials.length === 0 ? (
+                <p className="admin-summary">Még nincs alapanyag.</p>
+              ) : (
+                <div className="budget-modal-draft-list">
+                  {newTaskDraft.materials.map((material) => (
+                    <div className="budget-modal-draft-card" key={material.key}>
+                      <label>
+                        Név
+                        <input
+                          type="text"
+                          value={material.name}
+                          onChange={(event) =>
+                            updateDraftMaterial(material.key, 'name', event.target.value)
+                          }
+                          placeholder="pl. virág, szalag"
+                        />
+                      </label>
+                      <div className="budget-modal-row">
+                        <label>
+                          Beszerzés
+                          <input
+                            type="text"
+                            value={material.source}
+                            onChange={(event) =>
+                              updateDraftMaterial(material.key, 'source', event.target.value)
+                            }
+                            placeholder="Honnan?"
+                          />
+                        </label>
+                        <label>
+                          Becsült ár
+                          <input
+                            type="number"
+                            min="0"
+                            step="100"
+                            value={material.estimated_price}
+                            onChange={(event) =>
+                              updateDraftMaterial(
+                                material.key,
+                                'estimated_price',
+                                event.target.value,
+                              )
+                            }
+                          />
+                        </label>
+                      </div>
+                      <label className="budget-modal-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={material.is_acquired}
+                          onChange={(event) =>
+                            updateDraftMaterial(material.key, 'is_acquired', event.target.checked)
+                          }
+                        />
+                        <span>Beszerezve</span>
+                      </label>
+                      <button type="button" onClick={() => removeDraftMaterial(material.key)}>
+                        Alapanyag törlése
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </AdminModal>
         )}
 
         <p className="auth-switch">

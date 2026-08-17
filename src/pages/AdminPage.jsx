@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
@@ -78,6 +79,8 @@ export default function AdminPage() {
   const [appliedLabelFilter, setAppliedLabelFilter] = useState([])
   const [draftLabelFilter, setDraftLabelFilter] = useState([])
   const [isLabelFilterOpen, setIsLabelFilterOpen] = useState(false)
+  const [isAddInviteeOpen, setIsAddInviteeOpen] = useState(false)
+  const [newInvitee, setNewInvitee] = useState(null)
 
   useEffect(() => {
     async function loadData() {
@@ -172,6 +175,22 @@ export default function AdminPage() {
 
   const firstRoundCount = invitees.filter((invitee) => invitee.invite_round === 'first').length
 
+  const duplicateInviteeNames = useMemo(() => {
+    const counts = new Map()
+
+    invitees.forEach((invitee) => {
+      const name = (invitee.name || '').trim()
+      if (name) {
+        counts.set(name, (counts.get(name) || 0) + 1)
+      }
+    })
+
+    return [...counts.entries()]
+      .filter(([, count]) => count > 1)
+      .map(([name, count]) => ({ name, count }))
+      .sort((left, right) => left.name.localeCompare(right.name, 'hu'))
+  }, [invitees])
+
   function openLabelFilter() {
     setDraftLabelFilter([...appliedLabelFilter])
     setIsLabelFilterOpen(true)
@@ -228,11 +247,76 @@ export default function AdminPage() {
     )
   }
 
-  function addInvitee() {
-    setInvitees((current) => [
-      ...current,
-      createInvitee(current.reduce((max, item) => Math.max(max, item.sort_order || 0), 0) + 1),
-    ])
+  function openAddInviteeModal() {
+    const nextSort =
+      invitees.reduce((max, item) => Math.max(max, item.sort_order || 0), 0) + 1
+    setNewInvitee(createInvitee(nextSort))
+    setIsAddInviteeOpen(true)
+    setStatusMessage('')
+  }
+
+  function closeAddInviteeModal() {
+    setIsAddInviteeOpen(false)
+    setNewInvitee(null)
+  }
+
+  function updateNewInviteeField(field, value) {
+    setNewInvitee((current) => (current ? { ...current, [field]: value } : current))
+  }
+
+  async function saveNewInvitee() {
+    if (!newInvitee) {
+      return
+    }
+
+    const name = newInvitee.name.trim()
+    if (!name) {
+      setStatusMessage('Az új meghívotthoz kell nevet adni.')
+      return
+    }
+
+    if (newInvitee.guest_id && linkedGuestIds.has(String(newInvitee.guest_id))) {
+      setStatusMessage('Ez a visszajelzés már hozzá van rendelve egy meghívotthoz.')
+      return
+    }
+
+    setIsSubmitting(true)
+    setStatusMessage('')
+
+    const payload = {
+      name,
+      label: newInvitee.label || null,
+      invite_round: newInvitee.invite_round === 'second' ? 'second' : 'first',
+      guest_id: newInvitee.guest_id ? Number(newInvitee.guest_id) : null,
+      sort_order: Number(newInvitee.sort_order) || invitees.length,
+      updated_at: new Date().toISOString(),
+    }
+
+    const { data, error } = await supabase
+      .from('invitees')
+      .insert(payload)
+      .select('id, name, label, invite_round, guest_id, sort_order')
+      .single()
+
+    setIsSubmitting(false)
+
+    if (error) {
+      setStatusMessage(`Nem sikerült létrehozni a meghívottat: ${error.message}`)
+      return
+    }
+
+    const saved = {
+      ...data,
+      label: data.label || '',
+      invite_round: data.invite_round === 'second' ? 'second' : 'first',
+      guest_id: data.guest_id ? String(data.guest_id) : null,
+      isNew: false,
+    }
+
+    setInvitees((current) => [...current, saved])
+    setSavedInvitees((current) => [...current, saved])
+    closeAddInviteeModal()
+    setStatusMessage('Az új meghívott mentve.')
   }
 
   function removeInvitee(inviteeId) {
@@ -456,6 +540,21 @@ export default function AdminPage() {
                   )}
                 </p>
 
+                {duplicateInviteeNames.length > 0 && (
+                  <div className="form-message seating-warning">
+                    <strong>Figyelmeztetés:</strong> az alábbi nevek több meghívottnál is
+                    szerepelnek. Az ülésrend és a szobabeosztás csak a név alapján azonosítja az
+                    embereket, ezért érdemes egyedivé tenni őket (például családnévvel):
+                    <ul>
+                      {duplicateInviteeNames.map(({ name, count }) => (
+                        <li key={`duplicate-invitee-${name}`}>
+                          {name} - {count} meghívott
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
                 <div className="admin-stats">
                   <article>
                     <span>{invitees.length}</span>
@@ -573,6 +672,12 @@ export default function AdminPage() {
             )}
 
             <div className="admin-actions">
+              {activeView === 'invitees' && (
+                <button type="button" onClick={openAddInviteeModal} disabled={isSubmitting}>
+                  Meghívott hozzáadása
+                </button>
+              )}
+
               {!isEditing ? (
                 <button type="button" onClick={() => setIsEditing(true)}>
                   Szerkesztés
@@ -585,11 +690,6 @@ export default function AdminPage() {
                   <button type="button" onClick={discardChanges} disabled={isSubmitting}>
                     Módosítások elvetése
                   </button>
-                  {activeView === 'invitees' && (
-                    <button type="button" onClick={addInvitee} disabled={isSubmitting}>
-                      Meghívott hozzáadása
-                    </button>
-                  )}
                 </>
               )}
             </div>
@@ -818,6 +918,95 @@ export default function AdminPage() {
             )}
           </div>
         )}
+
+        {isAddInviteeOpen &&
+          newInvitee &&
+          createPortal(
+            <div
+              className="budget-modal-backdrop"
+              role="presentation"
+              onClick={closeAddInviteeModal}
+            >
+              <div
+                className="budget-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="admin-new-invitee-title"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <h2 id="admin-new-invitee-title">Új meghívott</h2>
+
+                <label>
+                  Név
+                  <input
+                    type="text"
+                    value={newInvitee.name}
+                    onChange={(event) => updateNewInviteeField('name', event.target.value)}
+                    placeholder="Meghívott neve"
+                    autoFocus
+                  />
+                </label>
+
+                <label>
+                  Kategória
+                  <select
+                    value={newInvitee.label || ''}
+                    onChange={(event) => updateNewInviteeField('label', event.target.value)}
+                  >
+                    {guestLabels.map((label) => (
+                      <option value={label} key={label || 'empty-label'}>
+                        {label || 'Nincs kategória'}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  Kör
+                  <select
+                    value={newInvitee.invite_round || 'first'}
+                    onChange={(event) => updateNewInviteeField('invite_round', event.target.value)}
+                  >
+                    {inviteRoundOptions.map((option) => (
+                      <option value={option.value} key={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  Kapcsolt visszajelzés
+                  <select
+                    value={newInvitee.guest_id || ''}
+                    onChange={(event) =>
+                      updateNewInviteeField('guest_id', event.target.value || null)
+                    }
+                  >
+                    <option value="">Nincs összekötve</option>
+                    {guests
+                      .filter((guest) => !linkedGuestIds.has(String(guest.id)))
+                      .map((guest) => (
+                        <option value={guest.id} key={guest.id}>
+                          {guest.name}
+                          {guest.response ? '' : ' (nem jön)'}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+
+                <div className="budget-modal-actions">
+                  <button type="button" onClick={saveNewInvitee} disabled={isSubmitting}>
+                    {isSubmitting ? 'Mentés...' : 'Mentés'}
+                  </button>
+                  <button type="button" onClick={closeAddInviteeModal} disabled={isSubmitting}>
+                    Mégse
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )}
 
         <Link className="text-link" to="/">
           Vissza a főoldalra

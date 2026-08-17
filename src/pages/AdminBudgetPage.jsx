@@ -1,5 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
+import AdminModal from '../components/AdminModal'
 import { supabase } from '../lib/supabase'
 
 const chartColors = [
@@ -230,6 +232,8 @@ export default function AdminBudgetPage() {
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [newTransaction, setNewTransaction] = useState(null)
+  const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false)
+  const [newCategory, setNewCategory] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [hasAccess, setHasAccess] = useState(false)
@@ -447,10 +451,60 @@ export default function AdminBudgetPage() {
   }
 
   function addCategory(parentId = null) {
-    setCategories((current) => [...current, createCategory(parentId)])
-    if (parentId) {
-      setExpandedCategoryIds((current) => new Set([...current, parentId]))
+    const sortOrder =
+      categories.reduce((max, item) => Math.max(max, Number(item.sort_order) || 0), 0) + 1
+    setNewCategory({ ...createCategory(parentId), sort_order: sortOrder })
+    setIsAddCategoryOpen(true)
+    setStatusMessage('')
+  }
+
+  function closeAddCategoryModal() {
+    setIsAddCategoryOpen(false)
+    setNewCategory(null)
+  }
+
+  function updateNewCategory(field, value) {
+    setNewCategory((current) => (current ? { ...current, [field]: value } : current))
+  }
+
+  async function saveNewCategory() {
+    if (!newCategory) {
+      return
     }
+
+    const name = newCategory.name.trim()
+    if (!name) {
+      setStatusMessage('Az új kategóriának kell nevet adni.')
+      return
+    }
+
+    const row = {
+      id: newCategory.id,
+      name,
+      budgeted_amount: Number(newCategory.budgeted_amount) || 0,
+      parent_id: newCategory.parent_id || null,
+      sort_order: Number(newCategory.sort_order) || 0,
+    }
+
+    setIsSubmitting(true)
+    setStatusMessage('')
+
+    const { error } = await supabase.from('budget_categories').insert(row)
+    setIsSubmitting(false)
+
+    if (error) {
+      setStatusMessage(`Nem sikerült létrehozni a kategóriát: ${error.message}`)
+      return
+    }
+
+    const saved = { ...row, isNew: false }
+    setCategories((current) => [...current, saved])
+    setSavedCategories((current) => [...current, saved])
+    if (row.parent_id) {
+      setExpandedCategoryIds((current) => new Set([...current, row.parent_id]))
+    }
+    closeAddCategoryModal()
+    setStatusMessage('Az új kategória mentve.')
   }
 
   function removeCategory(categoryId) {
@@ -831,6 +885,9 @@ export default function AdminBudgetPage() {
                 </p>
 
                 <div className="admin-actions">
+                  <button type="button" onClick={() => addCategory()} disabled={isSubmitting}>
+                    Új fő kategória
+                  </button>
                   {!isEditingCategories ? (
                     <>
                       <button type="button" onClick={startCategoryEditing}>
@@ -855,9 +912,6 @@ export default function AdminBudgetPage() {
                         disabled={isSubmitting}
                       >
                         Módosítások elvetése
-                      </button>
-                      <button type="button" onClick={() => addCategory()}>
-                        Új fő kategória
                       </button>
                     </>
                   )}
@@ -1205,82 +1259,149 @@ export default function AdminBudgetPage() {
           </>
         )}
 
-        {isAddModalOpen && newTransaction && (
-          <div
-            className="budget-modal-backdrop"
-            role="presentation"
-            onClick={closeAddTransactionModal}
-          >
+        {isAddModalOpen &&
+          newTransaction &&
+          createPortal(
             <div
-              className="budget-modal"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="budget-new-transaction-title"
-              onClick={(event) => event.stopPropagation()}
+              className="budget-modal-backdrop"
+              role="presentation"
+              onClick={closeAddTransactionModal}
             >
-              <h2 id="budget-new-transaction-title">Új tranzakció</h2>
+              <div
+                className="budget-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="budget-new-transaction-title"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <h2 id="budget-new-transaction-title">Új tranzakció</h2>
 
-              <label>
-                Dátum
-                <input
-                  type="date"
-                  value={newTransaction.transaction_date}
-                  onChange={(event) =>
-                    updateNewTransactionField('transaction_date', event.target.value)
-                  }
-                />
-              </label>
+                <label>
+                  Dátum
+                  <input
+                    type="date"
+                    value={newTransaction.transaction_date}
+                    onChange={(event) =>
+                      updateNewTransactionField('transaction_date', event.target.value)
+                    }
+                  />
+                </label>
 
-              <label>
-                Kategória
-                <select
-                  value={newTransaction.category_id}
-                  onChange={(event) =>
-                    updateNewTransactionField('category_id', event.target.value)
-                  }
-                >
-                  <option value="">Válassz kategóriát</option>
-                  {leafCategories.map((category) => (
-                    <option value={category.id} key={category.id}>
-                      {getCategoryLabel(category.id, categories)}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                <label>
+                  Kategória
+                  <select
+                    value={newTransaction.category_id}
+                    onChange={(event) =>
+                      updateNewTransactionField('category_id', event.target.value)
+                    }
+                  >
+                    <option value="">Válassz kategóriát</option>
+                    {leafCategories.map((category) => (
+                      <option value={category.id} key={category.id}>
+                        {getCategoryLabel(category.id, categories)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-              <label>
-                Leírás
-                <input
-                  type="text"
-                  value={newTransaction.description}
-                  onChange={(event) =>
-                    updateNewTransactionField('description', event.target.value)
-                  }
-                  placeholder="Pl. foglaló, virágok..."
-                />
-              </label>
+                <label>
+                  Leírás
+                  <input
+                    type="text"
+                    value={newTransaction.description}
+                    onChange={(event) =>
+                      updateNewTransactionField('description', event.target.value)
+                    }
+                    placeholder="Pl. foglaló, virágok..."
+                  />
+                </label>
 
-              <label>
-                Összeg
-                <input
-                  type="number"
-                  min="0"
-                  step="1000"
-                  value={newTransaction.amount}
-                  onChange={(event) => updateNewTransactionField('amount', event.target.value)}
-                />
-              </label>
+                <label>
+                  Összeg
+                  <input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    value={newTransaction.amount}
+                    onChange={(event) => updateNewTransactionField('amount', event.target.value)}
+                  />
+                </label>
 
-              <div className="budget-modal-actions">
-                <button type="button" onClick={saveNewTransaction} disabled={isSubmitting}>
+                <div className="budget-modal-actions">
+                  <button type="button" onClick={saveNewTransaction} disabled={isSubmitting}>
+                    {isSubmitting ? 'Mentés...' : 'Mentés'}
+                  </button>
+                  <button type="button" onClick={closeAddTransactionModal} disabled={isSubmitting}>
+                    Mégse
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )}
+
+        {isAddCategoryOpen && newCategory && (
+          <AdminModal
+            title={newCategory.parent_id ? 'Új alkategória' : 'Új fő kategória'}
+            titleId="budget-new-category-title"
+            onClose={closeAddCategoryModal}
+            actions={
+              <>
+                <button type="button" onClick={saveNewCategory} disabled={isSubmitting}>
                   {isSubmitting ? 'Mentés...' : 'Mentés'}
                 </button>
-                <button type="button" onClick={closeAddTransactionModal} disabled={isSubmitting}>
+                <button type="button" onClick={closeAddCategoryModal} disabled={isSubmitting}>
                   Mégse
                 </button>
-              </div>
-            </div>
-          </div>
+              </>
+            }
+          >
+            <label>
+              Név
+              <input
+                type="text"
+                value={newCategory.name}
+                onChange={(event) => updateNewCategory('name', event.target.value)}
+                autoFocus
+              />
+            </label>
+            <label>
+              Szülő kategória
+              <select
+                value={newCategory.parent_id || ''}
+                onChange={(event) =>
+                  updateNewCategory('parent_id', event.target.value || null)
+                }
+              >
+                <option value="">Fő kategória</option>
+                {categories
+                  .filter((item) => !item.parent_id && item.id !== newCategory.id)
+                  .map((parent) => (
+                    <option value={parent.id} key={parent.id}>
+                      {parent.name || 'Névtelen kategória'}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label>
+              Költségvetés
+              <input
+                type="number"
+                min="0"
+                step="1000"
+                value={newCategory.budgeted_amount}
+                onChange={(event) => updateNewCategory('budgeted_amount', event.target.value)}
+              />
+            </label>
+            <label>
+              Sorrend
+              <input
+                type="number"
+                value={newCategory.sort_order}
+                onChange={(event) => updateNewCategory('sort_order', event.target.value)}
+              />
+            </label>
+          </AdminModal>
         )}
 
         <p className="auth-switch">

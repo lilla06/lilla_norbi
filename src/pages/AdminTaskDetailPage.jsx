@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import AdminModal from '../components/AdminModal'
 import { supabase } from '../lib/supabase'
 import {
   DEFAULT_TASK_TIMING,
@@ -58,6 +59,15 @@ export default function AdminTaskDetailPage() {
   const [saveState, setSaveState] = useState('idle')
   const [busyAction, setBusyAction] = useState(null)
   const [isManualSaving, setIsManualSaving] = useState(false)
+  const [isAddSubtaskOpen, setIsAddSubtaskOpen] = useState(false)
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState('')
+  const [newSubtaskTiming, setNewSubtaskTiming] = useState(DEFAULT_TASK_TIMING)
+  const [isAddMaterialOpen, setIsAddMaterialOpen] = useState(false)
+  const [newMaterialDraft, setNewMaterialDraft] = useState({
+    name: '',
+    source: '',
+    estimated_price: '',
+  })
 
   const readyRef = useRef(false)
   const timersRef = useRef({})
@@ -552,6 +562,12 @@ export default function AdminTaskDetailPage() {
   }
 
   async function addSubtask() {
+    const title = newSubtaskTitle.trim()
+    if (!title) {
+      setStatusMessage('Az új alfeladathoz kell címet adni.')
+      return
+    }
+
     const sortOrder =
       subtasks.reduce((max, item) => Math.max(max, item.sort_order || 0), 0) + 1
 
@@ -560,10 +576,10 @@ export default function AdminTaskDetailPage() {
         .from('wedding_tasks')
         .insert({
           parent_id: taskId,
-          title: 'Új alfeladat',
+          title,
           progress: 0,
           notes: '',
-          timing: DEFAULT_TASK_TIMING,
+          timing: normalizeTaskTiming(newSubtaskTiming),
           sort_order: sortOrder,
         })
         .select('id, title, progress, timing, sort_order')
@@ -585,7 +601,6 @@ export default function AdminTaskDetailPage() {
         },
       ])
 
-      // Ha eddig nem voltak alfeladatok, a szülő progresszét nullázzuk (átlagra vált)
       if (subtasks.length === 0) {
         await supabase
           .from('wedding_tasks')
@@ -593,6 +608,9 @@ export default function AdminTaskDetailPage() {
           .eq('id', taskId)
       }
 
+      setIsAddSubtaskOpen(false)
+      setNewSubtaskTitle('')
+      setNewSubtaskTiming(DEFAULT_TASK_TIMING)
       return null
     }, 'add-subtask')
   }
@@ -635,6 +653,12 @@ export default function AdminTaskDetailPage() {
   }
 
   async function addMaterial() {
+    const name = newMaterialDraft.name.trim()
+    if (!name) {
+      setStatusMessage('Az új alapanyaghoz kell nevet adni.')
+      return
+    }
+
     const sortOrder =
       materials.reduce((max, item) => Math.max(max, item.sort_order || 0), 0) + 1
 
@@ -643,9 +667,9 @@ export default function AdminTaskDetailPage() {
         .from('wedding_task_materials')
         .insert({
           task_id: taskId,
-          name: '',
-          source: '',
-          estimated_price: 0,
+          name,
+          source: newMaterialDraft.source.trim(),
+          estimated_price: parsePrice(newMaterialDraft.estimated_price),
           is_acquired: false,
           sort_order: sortOrder,
         })
@@ -671,6 +695,8 @@ export default function AdminTaskDetailPage() {
         },
       ])
 
+      setIsAddMaterialOpen(false)
+      setNewMaterialDraft({ name: '', source: '', estimated_price: '' })
       return null
     }, 'add-material')
   }
@@ -863,10 +889,15 @@ export default function AdminTaskDetailPage() {
                 <h2>Alfeladatok</h2>
                 <button
                   type="button"
-                  onClick={addSubtask}
+                  onClick={() => {
+                    setNewSubtaskTitle('')
+                    setNewSubtaskTiming(DEFAULT_TASK_TIMING)
+                    setIsAddSubtaskOpen(true)
+                    setStatusMessage('')
+                  }}
                   disabled={busyAction === 'add-subtask'}
                 >
-                  {busyAction === 'add-subtask' ? 'Hozzáadás...' : 'Alfeladat hozzáadása'}
+                  Alfeladat hozzáadása
                 </button>
               </div>
               <p className="admin-summary">
@@ -973,10 +1004,14 @@ export default function AdminTaskDetailPage() {
                 <h2>Alapanyagok</h2>
                 <button
                   type="button"
-                  onClick={addMaterial}
+                  onClick={() => {
+                    setNewMaterialDraft({ name: '', source: '', estimated_price: '' })
+                    setIsAddMaterialOpen(true)
+                    setStatusMessage('')
+                  }}
                   disabled={busyAction === 'add-material'}
                 >
-                  {busyAction === 'add-material' ? 'Hozzáadás...' : 'Alapanyag hozzáadása'}
+                  Alapanyag hozzáadása
                 </button>
               </div>
 
@@ -1066,6 +1101,122 @@ export default function AdminTaskDetailPage() {
               </div>
             </section>
           </>
+        )}
+
+        {isAddSubtaskOpen && (
+          <AdminModal
+            title="Új alfeladat"
+            titleId="task-new-subtask-title"
+            onClose={() => setIsAddSubtaskOpen(false)}
+            actions={
+              <>
+                <button
+                  type="button"
+                  onClick={addSubtask}
+                  disabled={busyAction === 'add-subtask'}
+                >
+                  {busyAction === 'add-subtask' ? 'Mentés...' : 'Mentés'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsAddSubtaskOpen(false)}
+                  disabled={busyAction === 'add-subtask'}
+                >
+                  Mégse
+                </button>
+              </>
+            }
+          >
+            <label>
+              Alfeladat neve
+              <input
+                type="text"
+                value={newSubtaskTitle}
+                onChange={(event) => setNewSubtaskTitle(event.target.value)}
+                placeholder="Pl. meghívó szöveg írása"
+                autoFocus
+              />
+            </label>
+            <label>
+              Időzítés
+              <select
+                value={newSubtaskTiming}
+                onChange={(event) => setNewSubtaskTiming(event.target.value)}
+              >
+                {TASK_TIMING_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </AdminModal>
+        )}
+
+        {isAddMaterialOpen && (
+          <AdminModal
+            title="Új alapanyag"
+            titleId="task-new-material-title"
+            onClose={() => setIsAddMaterialOpen(false)}
+            actions={
+              <>
+                <button
+                  type="button"
+                  onClick={addMaterial}
+                  disabled={busyAction === 'add-material'}
+                >
+                  {busyAction === 'add-material' ? 'Mentés...' : 'Mentés'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsAddMaterialOpen(false)}
+                  disabled={busyAction === 'add-material'}
+                >
+                  Mégse
+                </button>
+              </>
+            }
+          >
+            <label>
+              Alapanyag
+              <input
+                type="text"
+                value={newMaterialDraft.name}
+                onChange={(event) =>
+                  setNewMaterialDraft((current) => ({ ...current, name: event.target.value }))
+                }
+                placeholder="pl. virág, szalag"
+                autoFocus
+              />
+            </label>
+            <label>
+              Beszerzés
+              <input
+                type="text"
+                value={newMaterialDraft.source}
+                onChange={(event) =>
+                  setNewMaterialDraft((current) => ({ ...current, source: event.target.value }))
+                }
+                placeholder="Honnan szerezzük be?"
+              />
+            </label>
+            <label>
+              Becsült ár
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={newMaterialDraft.estimated_price}
+                onChange={(event) =>
+                  setNewMaterialDraft((current) => ({
+                    ...current,
+                    estimated_price: event.target.value,
+                  }))
+                }
+                placeholder="0"
+              />
+            </label>
+          </AdminModal>
         )}
 
         <p className="auth-switch">

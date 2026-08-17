@@ -9,7 +9,7 @@ export function clonePlanRooms(rooms) {
   }))
 }
 
-/** meghívott név -> visszajelzett vendég név */
+/** meghívott név -> összekötött vendég nevek listája (egy név több emberhez is tartozhat) */
 export function buildInviteeToGuestNameMap(invitees, guests) {
   const guestById = new Map(guests.map((guest) => [String(guest.id), guest]))
   const map = new Map()
@@ -20,21 +20,50 @@ export function buildInviteeToGuestNameMap(invitees, guests) {
     }
 
     const guest = guestById.get(String(invitee.guest_id))
-    if (guest?.name) {
-      map.set(invitee.name, guest.name)
+    if (!guest?.name) {
+      return
+    }
+
+    const guestNames = map.get(invitee.name)
+    if (guestNames) {
+      guestNames.push(guest.name)
+    } else {
+      map.set(invitee.name, [guest.name])
     }
   })
 
   return map
 }
 
+/**
+ * Az egyforma nevű meghívottakhoz sorban rendeli hozzá az összekötött vendégeket,
+ * így egy vendég csak egyszer kerül be az átvitt beosztásba.
+ */
+function createGuestNamePicker(inviteeToGuestName) {
+  const usedCounts = new Map()
+
+  return (inviteeName) => {
+    const raw = inviteeToGuestName.get(inviteeName)
+    const guestNames = Array.isArray(raw) ? raw : raw ? [raw] : []
+    const usedCount = usedCounts.get(inviteeName) || 0
+
+    if (usedCount >= guestNames.length) {
+      return ''
+    }
+
+    usedCounts.set(inviteeName, usedCount + 1)
+    return guestNames[usedCount]
+  }
+}
+
 export function copySeatingPlannedToActual(plannedTables, actualTables, inviteeToGuestName) {
   const next = clonePlanTables(actualTables)
+  const pickGuestName = createGuestNamePicker(inviteeToGuestName)
   const placements = []
 
   plannedTables.forEach((table, tableIndex) => {
     table.seats.forEach((inviteeName, seatIndex) => {
-      const guestName = inviteeToGuestName.get(inviteeName)
+      const guestName = pickGuestName(inviteeName)
       if (guestName) {
         placements.push({ tableIndex, seatIndex, guestName })
       }
@@ -58,11 +87,12 @@ export function copySeatingPlannedToActual(plannedTables, actualTables, inviteeT
 
 export function copyRoomsPlannedToActual(plannedRooms, actualRooms, inviteeToGuestName) {
   const next = clonePlanRooms(actualRooms)
+  const pickGuestName = createGuestNamePicker(inviteeToGuestName)
   const placements = []
 
   plannedRooms.forEach((room, roomIndex) => {
     Object.entries(room.assignments).forEach(([assignmentKey, inviteeName]) => {
-      const guestName = inviteeToGuestName.get(inviteeName)
+      const guestName = pickGuestName(inviteeName)
       if (guestName) {
         placements.push({ roomIndex, assignmentKey, guestName })
       }

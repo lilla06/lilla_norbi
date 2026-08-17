@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import AdminModal from '../components/AdminModal'
 import { supabase } from '../lib/supabase'
 
 function isAdmin(user) {
@@ -18,6 +19,12 @@ export default function AdminWishlistPage() {
   const [hasAccess, setHasAccess] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
   const [isCreating, setIsCreating] = useState(false)
+  const [isAddMaterialOpen, setIsAddMaterialOpen] = useState(false)
+  const [newMaterial, setNewMaterial] = useState({
+    name: '',
+    source: '',
+    estimated_price: '',
+  })
   const [deletingId, setDeletingId] = useState(null)
   const [taskFilter, setTaskFilter] = useState('all')
   const [acquiredFilter, setAcquiredFilter] = useState('all')
@@ -103,7 +110,24 @@ export default function AdminWishlistPage() {
     })
   }, [materials, taskFilter, acquiredFilter])
 
+  function openAddMaterialModal() {
+    setNewMaterial({ name: '', source: '', estimated_price: '' })
+    setIsAddMaterialOpen(true)
+    setStatusMessage('')
+  }
+
+  function closeAddMaterialModal() {
+    setIsAddMaterialOpen(false)
+    setNewMaterial({ name: '', source: '', estimated_price: '' })
+  }
+
   async function createMaterial() {
+    const name = newMaterial.name.trim()
+    if (!name) {
+      setStatusMessage('Az új tételhez kell nevet adni.')
+      return
+    }
+
     setIsCreating(true)
     setStatusMessage('')
 
@@ -114,9 +138,9 @@ export default function AdminWishlistPage() {
       .from('wedding_task_materials')
       .insert({
         task_id: null,
-        name: 'Új tétel',
-        source: '',
-        estimated_price: 0,
+        name,
+        source: newMaterial.source.trim(),
+        estimated_price: Number(newMaterial.estimated_price) || 0,
         is_acquired: false,
         sort_order: sortOrder,
       })
@@ -130,6 +154,7 @@ export default function AdminWishlistPage() {
       return
     }
 
+    closeAddMaterialModal()
     navigate(`/admin/wishlist/${data.id}`)
   }
 
@@ -184,8 +209,8 @@ export default function AdminWishlistPage() {
         {hasAccess && (
           <>
             <div className="admin-actions task-list-toolbar">
-              <button type="button" onClick={createMaterial} disabled={isCreating}>
-                {isCreating ? 'Létrehozás...' : 'Új tétel'}
+              <button type="button" onClick={openAddMaterialModal} disabled={isCreating}>
+                Új tétel
               </button>
               <div className="task-filter-controls" role="group" aria-label="Szűrés feladat szerint">
                 <span>Feladat:</span>
@@ -309,6 +334,63 @@ export default function AdminWishlistPage() {
               </table>
             </div>
           </>
+        )}
+
+        {isAddMaterialOpen && (
+          <AdminModal
+            title="Új wishlist tétel"
+            titleId="wishlist-new-item-title"
+            onClose={closeAddMaterialModal}
+            actions={
+              <>
+                <button type="button" onClick={createMaterial} disabled={isCreating}>
+                  {isCreating ? 'Mentés...' : 'Mentés'}
+                </button>
+                <button type="button" onClick={closeAddMaterialModal} disabled={isCreating}>
+                  Mégse
+                </button>
+              </>
+            }
+          >
+            <label>
+              Név
+              <input
+                type="text"
+                value={newMaterial.name}
+                onChange={(event) =>
+                  setNewMaterial((current) => ({ ...current, name: event.target.value }))
+                }
+                placeholder="Pl. gyertyák"
+                autoFocus
+              />
+            </label>
+            <label>
+              Forrás
+              <input
+                type="text"
+                value={newMaterial.source}
+                onChange={(event) =>
+                  setNewMaterial((current) => ({ ...current, source: event.target.value }))
+                }
+                placeholder="Pl. Temu"
+              />
+            </label>
+            <label>
+              Becsült ár
+              <input
+                type="number"
+                min="0"
+                step="100"
+                value={newMaterial.estimated_price}
+                onChange={(event) =>
+                  setNewMaterial((current) => ({
+                    ...current,
+                    estimated_price: event.target.value,
+                  }))
+                }
+              />
+            </label>
+          </AdminModal>
         )}
 
         <p className="auth-switch">

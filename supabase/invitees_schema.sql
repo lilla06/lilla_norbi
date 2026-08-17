@@ -94,6 +94,34 @@ drop index if exists seating_assignments_table_key_seat_index_key;
 create unique index if not exists seating_assignments_plan_unique
   on public.seating_assignments (table_key, seat_index, plan_type);
 
+-- Az elsődleges kulcsba is bele kell tenni a plan_type-ot
+do $$
+declare
+  pk_name text;
+  pk_columns text[];
+begin
+  select con.conname,
+         array_agg(att.attname order by att.attnum)
+    into pk_name, pk_columns
+  from pg_constraint con
+  join pg_attribute att
+    on att.attrelid = con.conrelid
+   and att.attnum = any (con.conkey)
+  where con.conrelid = 'public.seating_assignments'::regclass
+    and con.contype = 'p'
+  group by con.conname;
+
+  if pk_name is not null
+     and not ('plan_type' = any (pk_columns))
+     and pk_columns <@ array['table_key', 'seat_index']
+  then
+    execute format('alter table public.seating_assignments drop constraint %I', pk_name);
+    execute 'alter table public.seating_assignments
+               add primary key (table_key, seat_index, plan_type)';
+    execute 'drop index if exists seating_assignments_plan_unique';
+  end if;
+end $$;
+
 -- 3) Szobabeosztás: tervezett vs valós
 alter table public.accommodation_assignments
   add column if not exists plan_type text;
@@ -121,6 +149,33 @@ drop index if exists accommodation_assignments_room_key_bed_key_slot_index_key;
 
 create unique index if not exists accommodation_assignments_plan_unique
   on public.accommodation_assignments (room_key, bed_key, slot_index, plan_type);
+
+do $$
+declare
+  pk_name text;
+  pk_columns text[];
+begin
+  select con.conname,
+         array_agg(att.attname order by att.attnum)
+    into pk_name, pk_columns
+  from pg_constraint con
+  join pg_attribute att
+    on att.attrelid = con.conrelid
+   and att.attnum = any (con.conkey)
+  where con.conrelid = 'public.accommodation_assignments'::regclass
+    and con.contype = 'p'
+  group by con.conname;
+
+  if pk_name is not null
+     and not ('plan_type' = any (pk_columns))
+     and pk_columns <@ array['room_key', 'bed_key', 'slot_index']
+  then
+    execute format('alter table public.accommodation_assignments drop constraint %I', pk_name);
+    execute 'alter table public.accommodation_assignments
+               add primary key (room_key, bed_key, slot_index, plan_type)';
+    execute 'drop index if exists accommodation_assignments_plan_unique';
+  end if;
+end $$;
 
 -- 4) Meghívott kör (ha a tábla már korábban létrejött)
 alter table public.invitees

@@ -2838,11 +2838,98 @@ p {
   display: grid;
   gap: 14px;
   width: min(100%, 420px);
+  max-height: min(90vh, 900px);
   padding: 24px;
+  overflow: auto;
   background: linear-gradient(160deg, rgba(255, 248, 231, 0.98), rgba(232, 220, 195, 0.96));
   border: 1px solid rgba(112, 84, 50, 0.22);
   border-radius: 4px;
   box-shadow: 0 18px 40px rgba(36, 53, 31, 0.28);
+}
+
+.budget-modal.is-wide {
+  width: min(100%, 780px);
+}
+
+.budget-modal-body {
+  display: grid;
+  gap: 14px;
+}
+
+.budget-modal-section {
+  display: grid;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(112, 84, 50, 0.14);
+  text-align: left;
+}
+
+.budget-modal-section h3 {
+  margin: 0;
+  color: var(--forest);
+  font-family: var(--font-serif);
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.budget-modal-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.budget-modal-draft-list {
+  display: grid;
+  gap: 10px;
+}
+
+.budget-modal-draft-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(255, 248, 231, 0.7);
+  border: 1px solid rgba(112, 84, 50, 0.14);
+  border-radius: 4px;
+}
+
+.budget-modal-draft-card .budget-modal-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.budget-modal textarea {
+  width: 100%;
+  min-height: 96px;
+  padding: 10px 12px;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 400;
+  resize: vertical;
+  background: rgba(255, 248, 231, 0.95);
+  border: 1px solid rgba(112, 84, 50, 0.2);
+  border-radius: 2px;
+}
+
+.budget-modal-assignees {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+
+.budget-modal-assignees label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-weight: 400;
+}
+
+.budget-modal-assignees input {
+  width: auto;
 }
 
 .budget-modal h2 {
@@ -2901,6 +2988,18 @@ p {
   opacity: 0.7;
 }
 
+.budget-modal-checkbox {
+  display: flex !important;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  font-weight: 400;
+}
+
+.budget-modal-checkbox input {
+  width: auto;
+}
+
 .seating-editor {
   display: grid;
   grid-template-columns: 1fr;
@@ -2930,6 +3029,15 @@ p {
 .guest-palette h2 {
   margin: 0 0 12px;
   font-size: 24px;
+}
+
+.guest-palette-hint {
+  margin: 0 0 12px;
+  color: #6a4a1c;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: left;
 }
 
 .guest-palette button {
@@ -3123,6 +3231,12 @@ p {
   color: #fff8e7;
   background: #2d4726;
   border-style: solid;
+}
+
+.seat.is-selected {
+  border-color: #d4af37;
+  border-style: solid;
+  box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.65);
 }
 
 .guest-palette button.guest-label-lilla-family,

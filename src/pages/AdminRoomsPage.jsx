@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import AdminModal from '../components/AdminModal'
 import {
   buildInviteeToGuestNameMap,
   clonePlanRooms,
@@ -166,6 +167,8 @@ export default function AdminRoomsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [hasAccess, setHasAccess] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
+  const [isAddRoomOpen, setIsAddRoomOpen] = useState(false)
+  const [newRoom, setNewRoom] = useState(null)
 
   const rooms = planType === 'planned' ? plannedRooms : actualRooms
 
@@ -253,10 +256,22 @@ export default function AdminRoomsPage() {
     planType === 'planned'
       ? invitees.map((invitee) => invitee.name).filter(Boolean)
       : guests.filter((guest) => guest.response).map((guest) => guest.name)
-  const assignedGuests = rooms.flatMap((room) => Object.values(room.assignments)).filter(Boolean)
-  const availableGuests = personNames
-    .filter((guest) => !assignedGuests.includes(guest))
-    .sort((left, right) => left.localeCompare(right, 'hu'))
+  // Ugyanaz a nev tobb emberhez is tartozhat, ezert nevenkent szamoljuk a fero szemelyeket
+  const nameTotals = personNames.reduce(
+    (totals, name) => totals.set(name, (totals.get(name) || 0) + 1),
+    new Map(),
+  )
+  const assignedCounts = rooms
+    .flatMap((room) => Object.values(room.assignments))
+    .filter(Boolean)
+    .reduce((counts, name) => counts.set(name, (counts.get(name) || 0) + 1), new Map())
+  const availableGuests = [...nameTotals.entries()]
+    .map(([name, total]) => ({ name, remaining: total - (assignedCounts.get(name) || 0) }))
+    .filter((item) => item.remaining > 0)
+    .sort((left, right) => left.name.localeCompare(right.name, 'hu'))
+  const duplicateWarnings = [...assignedCounts.entries()]
+    .filter(([name, count]) => nameTotals.has(name) && count > nameTotals.get(name))
+    .map(([name, count]) => ({ name, count, total: nameTotals.get(name) || 0 }))
   const guestResponseByName = new Map(guests.map((guest) => [guest.name, guest.response]))
   const roomWarnings =
     planType === 'actual'
@@ -314,9 +329,70 @@ export default function AdminRoomsPage() {
   }
 
   function addRoom() {
-    const nextRoom = createRoom(Math.max(plannedRooms.length, actualRooms.length))
-    setPlannedRooms((currentRooms) => [...currentRooms, { ...nextRoom, assignments: {} }])
-    setActualRooms((currentRooms) => [...currentRooms, { ...nextRoom, assignments: {} }])
+    setNewRoom(createRoom(Math.max(plannedRooms.length, actualRooms.length)))
+    setIsAddRoomOpen(true)
+    setStatusMessage('')
+  }
+
+  function closeAddRoomModal() {
+    setIsAddRoomOpen(false)
+    setNewRoom(null)
+  }
+
+  function updateNewRoom(field, value) {
+    setNewRoom((current) => {
+      if (!current) {
+        return current
+      }
+
+      const nextValue = field.endsWith('_beds') ? Number(value) : value
+      return sanitizeRoom({ ...current, [field]: nextValue }, current.display_order)
+    })
+  }
+
+  async function saveNewRoom() {
+    if (!newRoom) {
+      return
+    }
+
+    const room = sanitizeRoom(newRoom, newRoom.display_order)
+    if (!room.location_name.trim() && !room.room_number.trim()) {
+      setStatusMessage('Az új szobához kell helyszínt vagy szobaszámot adni.')
+      return
+    }
+
+    const roomRow = {
+      room_key: room.room_key,
+      location_name: room.location_name.trim(),
+      room_number: room.room_number.trim(),
+      double_beds: room.double_beds,
+      single_beds: room.single_beds,
+      extra_beds: room.extra_beds,
+      child_beds: room.child_beds,
+      display_order: room.display_order,
+    }
+
+    setIsSubmitting(true)
+    setStatusMessage('')
+
+    const { error } = await supabase
+      .from('accommodation_rooms')
+      .upsert(roomRow, { onConflict: 'room_key' })
+
+    setIsSubmitting(false)
+
+    if (error) {
+      setStatusMessage(`Nem sikerült létrehozni a szobát: ${error.message}`)
+      return
+    }
+
+    const nextRoom = { ...room, ...roomRow, assignments: {} }
+    setPlannedRooms((current) => [...current, nextRoom])
+    setActualRooms((current) => [...current, { ...nextRoom, assignments: {} }])
+    setSavedPlannedRooms((current) => [...current, nextRoom])
+    setSavedActualRooms((current) => [...current, { ...nextRoom, assignments: {} }])
+    closeAddRoomModal()
+    setStatusMessage('Az új szoba mentve.')
   }
 
   function removeRoom(roomIndex) {
@@ -345,24 +421,25 @@ export default function AdminRoomsPage() {
       return
     }
 
+    const total = nameTotals.get(guestName) || 0
+    const assigned = assignedCounts.get(guestName) || 0
+    const targetName = rooms[roomIndex]?.assignments?.[assignmentKey]
+
+    if (total > 0 && assigned >= total && targetName !== guestName) {
+      setStatusMessage(`Nincs több "${guestName}" nevű személy a listában.`)
+      setDraggedGuest('')
+      return
+    }
+
     setRooms((currentRooms) =>
-      currentRooms.map((room, currentRoomIndex) => {
-        const nextAssignments = Object.fromEntries(
-          Object.entries(room.assignments).map(([currentAssignmentKey, currentGuestName]) => [
-            currentAssignmentKey,
-            currentGuestName === guestName ? '' : currentGuestName,
-          ]),
-        )
-
-        if (currentRoomIndex === roomIndex) {
-          nextAssignments[assignmentKey] = guestName
-        }
-
-        return {
-          ...room,
-          assignments: nextAssignments,
-        }
-      }),
+      currentRooms.map((room, currentRoomIndex) =>
+        currentRoomIndex === roomIndex
+          ? {
+              ...room,
+              assignments: { ...room.assignments, [assignmentKey]: guestName },
+            }
+          : room,
+      ),
     )
     setDraggedGuest('')
   }
@@ -557,9 +634,22 @@ export default function AdminRoomsPage() {
             <strong>Figyelmeztetés:</strong> az alábbi vendégek szerepelnek a szobabeosztásban,
             de nem jelezték, hogy jönnek, vagy nincsenek az RSVP-zett vendégek között:
             <ul>
-              {roomWarnings.map(({ guestName, roomName }) => (
-                <li key={`${roomName}-${guestName}`}>
+              {roomWarnings.map(({ guestName, roomName }, warningIndex) => (
+                <li key={`${roomName}-${guestName}-${warningIndex}`}>
                   {guestName} - {roomName}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {duplicateWarnings.length > 0 && (
+          <div className="form-message seating-warning">
+            <strong>Figyelmeztetés:</strong> az alábbi nevek több ágyban szerepelnek, mint ahány
+            ilyen nevű személy van a listában:
+            <ul>
+              {duplicateWarnings.map(({ name, count, total }) => (
+                <li key={`duplicate-${name}`}>
+                  {name} - {count} ágyban, de {total} ilyen nevű személy van
                 </li>
               ))}
             </ul>
@@ -597,9 +687,14 @@ export default function AdminRoomsPage() {
 
             <div className="admin-actions">
               {!editMode && (
-                <button type="button" onClick={transferLinkedToActual} disabled={isSubmitting}>
-                  Áttöltés tervezettből
-                </button>
+                <>
+                  <button type="button" onClick={addRoom} disabled={isSubmitting}>
+                    Új szoba hozzáadása
+                  </button>
+                  <button type="button" onClick={transferLinkedToActual} disabled={isSubmitting}>
+                    Áttöltés tervezettből
+                  </button>
+                </>
               )}
 
               {!editMode ? (
@@ -623,16 +718,17 @@ export default function AdminRoomsPage() {
                   <button type="button" onClick={discardChanges} disabled={isSubmitting}>
                     Módosítások elvetése
                   </button>
+                  {editMode === 'rooms' && (
+                    <button type="button" onClick={addRoom} disabled={isSubmitting}>
+                      Új szoba hozzáadása
+                    </button>
+                  )}
                 </>
               )}
             </div>
 
             {editMode === 'rooms' && (
               <section className="room-edit-list">
-                <button className="room-add-button" type="button" onClick={addRoom}>
-                  Új szoba hozzáadása
-                </button>
-
                 <div className="admin-table-wrapper">
                   <table className="admin-table room-edit-table">
                     <thead>
@@ -743,18 +839,18 @@ export default function AdminRoomsPage() {
                         : 'Minden visszajelzett vendég kapott szobát.'}
                     </p>
                   ) : (
-                    availableGuests.map((guest) => (
+                    availableGuests.map(({ name, remaining }) => (
                       <button
                         draggable
                         type="button"
-                        key={guest}
+                        key={name}
                         onDragStart={(event) => {
-                          event.dataTransfer.setData('text/plain', guest)
+                          event.dataTransfer.setData('text/plain', name)
                           event.dataTransfer.effectAllowed = 'move'
-                          setDraggedGuest(guest)
+                          setDraggedGuest(name)
                         }}
                       >
-                        {guest}
+                        {remaining > 1 ? `${name} (${remaining} fő)` : name}
                       </button>
                     ))
                   )}
@@ -845,6 +941,78 @@ export default function AdminRoomsPage() {
               </section>
             )}
           </div>
+        )}
+
+        {isAddRoomOpen && newRoom && (
+          <AdminModal
+            title="Új szoba"
+            titleId="rooms-new-room-title"
+            onClose={closeAddRoomModal}
+            actions={
+              <>
+                <button type="button" onClick={saveNewRoom} disabled={isSubmitting}>
+                  {isSubmitting ? 'Mentés...' : 'Mentés'}
+                </button>
+                <button type="button" onClick={closeAddRoomModal} disabled={isSubmitting}>
+                  Mégse
+                </button>
+              </>
+            }
+          >
+            <label>
+              Helyszín
+              <input
+                type="text"
+                value={newRoom.location_name}
+                onChange={(event) => updateNewRoom('location_name', event.target.value)}
+                autoFocus
+              />
+            </label>
+            <label>
+              Szoba száma / neve
+              <input
+                type="text"
+                value={newRoom.room_number}
+                onChange={(event) => updateNewRoom('room_number', event.target.value)}
+              />
+            </label>
+            <label>
+              Franciaágy
+              <input
+                type="number"
+                min="0"
+                value={newRoom.double_beds}
+                onChange={(event) => updateNewRoom('double_beds', event.target.value)}
+              />
+            </label>
+            <label>
+              Szimpla ágy
+              <input
+                type="number"
+                min="0"
+                value={newRoom.single_beds}
+                onChange={(event) => updateNewRoom('single_beds', event.target.value)}
+              />
+            </label>
+            <label>
+              Pótágy
+              <input
+                type="number"
+                min="0"
+                value={newRoom.extra_beds}
+                onChange={(event) => updateNewRoom('extra_beds', event.target.value)}
+              />
+            </label>
+            <label>
+              Gyerekágy
+              <input
+                type="number"
+                min="0"
+                value={newRoom.child_beds}
+                onChange={(event) => updateNewRoom('child_beds', event.target.value)}
+              />
+            </label>
+          </AdminModal>
         )}
 
         <Link className="text-link" to="/">

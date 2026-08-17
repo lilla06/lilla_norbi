@@ -111,6 +111,7 @@ export default function AdminSeatingPage() {
   const [invitees, setInvitees] = useState([])
   const [guests, setGuests] = useState([])
   const [draggedGuest, setDraggedGuest] = useState('')
+  const [selectedSeat, setSelectedSeat] = useState(null)
   const [isEditing, setIsEditing] = useState(false)
   const [showLabelColors, setShowLabelColors] = useState(true)
   const [isLoading, setIsLoading] = useState(true)
@@ -202,10 +203,19 @@ export default function AdminSeatingPage() {
     planType === 'planned'
       ? invitees.map((invitee) => invitee.name).filter(Boolean)
       : guests.filter((guest) => guest.response).map((guest) => guest.name)
-  const assignedGuests = tables.flatMap((table) => table.seats).filter(Boolean)
-  const availableGuests = personNames
-    .filter((guest) => !assignedGuests.includes(guest))
-    .sort((left, right) => left.localeCompare(right, 'hu'))
+  // Ugyanaz a nev tobb emberhez is tartozhat, ezert nevenkent szamoljuk a fero szemelyeket
+  const nameTotals = personNames.reduce(
+    (totals, name) => totals.set(name, (totals.get(name) || 0) + 1),
+    new Map(),
+  )
+  const seatedCounts = tables
+    .flatMap((table) => table.seats)
+    .filter(Boolean)
+    .reduce((counts, name) => counts.set(name, (counts.get(name) || 0) + 1), new Map())
+  const availableGuests = [...nameTotals.entries()]
+    .map(([name, total]) => ({ name, remaining: total - (seatedCounts.get(name) || 0) }))
+    .filter((item) => item.remaining > 0)
+    .sort((left, right) => left.name.localeCompare(right.name, 'hu'))
   const labelSource =
     planType === 'planned'
       ? invitees.map((invitee) => ({ name: invitee.name, label: invitee.label }))
@@ -226,6 +236,9 @@ export default function AdminSeatingPage() {
             .filter(({ guestName }) => guestResponseByName.get(guestName) !== true),
         )
       : []
+  const duplicateWarnings = [...seatedCounts.entries()]
+    .filter(([name, count]) => nameTotals.has(name) && count > nameTotals.get(name))
+    .map(([name, count]) => ({ name, count, total: nameTotals.get(name) || 0 }))
 
   function switchPlanType(nextType) {
     if (nextType === planType) {
@@ -244,6 +257,7 @@ export default function AdminSeatingPage() {
       setActualTables(cloneTables(savedActualTables))
       setIsEditing(false)
       setDraggedGuest('')
+      setSelectedSeat(null)
     }
 
     setPlanType(nextType)
@@ -288,21 +302,29 @@ export default function AdminSeatingPage() {
       return
     }
 
+    const total = nameTotals.get(guestName) || 0
+    const seated = seatedCounts.get(guestName) || 0
+    const targetSeat = tables[tableIndex]?.seats[seatIndex]
+
+    if (total > 0 && seated >= total && targetSeat !== guestName) {
+      setStatusMessage(`Nincs több "${guestName}" nevű személy a listában.`)
+      setDraggedGuest('')
+      return
+    }
+
+    setSelectedSeat(null)
+
     setTables((currentTables) =>
-      currentTables.map((table, currentTableIndex) => ({
-        ...table,
-        seats: table.seats.map((seat, currentSeatIndex) => {
-          if (seat === guestName) {
-            return ''
-          }
-
-          if (currentTableIndex === tableIndex && currentSeatIndex === seatIndex) {
-            return guestName
-          }
-
-          return seat
-        }),
-      })),
+      currentTables.map((table, currentTableIndex) =>
+        currentTableIndex === tableIndex
+          ? {
+              ...table,
+              seats: table.seats.map((seat, currentSeatIndex) =>
+                currentSeatIndex === seatIndex ? guestName : seat,
+              ),
+            }
+          : table,
+      ),
     )
     setDraggedGuest('')
   }
@@ -337,10 +359,72 @@ export default function AdminSeatingPage() {
     )
   }
 
+  function swapSeats(source, target) {
+    setTables((currentTables) => {
+      const next = cloneTables(currentTables)
+      const sourceSeats = next[source.tableIndex]?.seats
+      const targetSeats = next[target.tableIndex]?.seats
+
+      if (!sourceSeats || !targetSeats) {
+        return currentTables
+      }
+
+      const movedName = sourceSeats[source.seatIndex] || ''
+      sourceSeats[source.seatIndex] = targetSeats[target.seatIndex] || ''
+      targetSeats[target.seatIndex] = movedName
+
+      return next
+    })
+  }
+
+  function isSeatSelected(tableIndex, seatIndex) {
+    return selectedSeat?.tableIndex === tableIndex && selectedSeat?.seatIndex === seatIndex
+  }
+
+  function handleSeatClick(tableIndex, seatIndex) {
+    if (!isEditing) {
+      return
+    }
+
+    const seatName = tables[tableIndex]?.seats[seatIndex] || ''
+
+    if (!selectedSeat) {
+      if (seatName) {
+        setSelectedSeat({ tableIndex, seatIndex })
+        setStatusMessage(`${seatName} kijelölve. Kattints a cél helyre az áthelyezéshez.`)
+      }
+      return
+    }
+
+    if (isSeatSelected(tableIndex, seatIndex)) {
+      setSelectedSeat(null)
+      setStatusMessage('')
+      return
+    }
+
+    swapSeats(selectedSeat, { tableIndex, seatIndex })
+    setSelectedSeat(null)
+    setStatusMessage('')
+  }
+
+  function handleSeatDoubleClick(tableIndex, seatIndex) {
+    if (!isEditing) {
+      return
+    }
+
+    setSelectedSeat(null)
+
+    if (tables[tableIndex]?.seats[seatIndex]) {
+      clearSeat(tableIndex, seatIndex)
+      setStatusMessage('')
+    }
+  }
+
   function startEditing() {
     setSavedPlannedTables(cloneTables(plannedTables))
     setSavedActualTables(cloneTables(actualTables))
     setStatusMessage('')
+    setSelectedSeat(null)
     setIsEditing(true)
   }
 
@@ -348,6 +432,7 @@ export default function AdminSeatingPage() {
     setPlannedTables(cloneTables(savedPlannedTables))
     setActualTables(cloneTables(savedActualTables))
     setDraggedGuest('')
+    setSelectedSeat(null)
     setStatusMessage('')
     setIsEditing(false)
   }
@@ -393,6 +478,7 @@ export default function AdminSeatingPage() {
     }
 
     setIsEditing(false)
+    setSelectedSeat(null)
     setSavedPlannedTables(cloneTables(plannedTables))
     setSavedActualTables(cloneTables(actualTables))
     setIsSubmitting(false)
@@ -485,9 +571,22 @@ export default function AdminSeatingPage() {
             <strong>Figyelmeztetés:</strong> az alábbi vendégek szerepelnek az ülésrendben, de
             nem jelezték, hogy jönnek, vagy nincsenek az RSVP-zett vendégek között:
             <ul>
-              {seatingWarnings.map(({ guestName, tableName }) => (
-                <li key={`${tableName}-${guestName}`}>
+              {seatingWarnings.map(({ guestName, tableName }, warningIndex) => (
+                <li key={`${tableName}-${guestName}-${warningIndex}`}>
                   {guestName} - {tableName}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {duplicateWarnings.length > 0 && (
+          <div className="form-message seating-warning">
+            <strong>Figyelmeztetés:</strong> az alábbi nevek több helyen szerepelnek, mint ahány
+            ilyen nevű személy van a listában:
+            <ul>
+              {duplicateWarnings.map(({ name, count, total }) => (
+                <li key={`duplicate-${name}`}>
+                  {name} - {count} helyen ül, de {total} ilyen nevű személy van
                 </li>
               ))}
             </ul>
@@ -557,6 +656,11 @@ export default function AdminSeatingPage() {
                 {isEditing && (
                   <aside className="guest-palette">
                     <h2>{planType === 'planned' ? 'Meghívottak' : 'Vendégek'}</h2>
+                    <p className="guest-palette-hint">
+                      Kattints egy leültetett névre a kijelöléshez, majd a cél helyre az
+                      áthelyezéshez. Ha ott már ül valaki, a két név helyet cserél. Dupla
+                      kattintással törlöd a nevet a helyről.
+                    </p>
                     {availableGuests.length === 0 ? (
                       <p>
                         {planType === 'planned'
@@ -564,19 +668,19 @@ export default function AdminSeatingPage() {
                           : 'Minden visszajelzett vendég kapott helyet.'}
                       </p>
                     ) : (
-                      availableGuests.map((guest) => (
+                      availableGuests.map(({ name, remaining }) => (
                         <button
                           draggable
                           type="button"
-                          className={getVisibleGuestLabelClass(guest)}
-                          key={guest}
+                          className={getVisibleGuestLabelClass(name)}
+                          key={name}
                           onDragStart={(event) => {
-                            event.dataTransfer.setData('text/plain', guest)
+                            event.dataTransfer.setData('text/plain', name)
                             event.dataTransfer.effectAllowed = 'move'
-                            setDraggedGuest(guest)
+                            setDraggedGuest(name)
                           }}
                         >
-                          {guest}
+                          {remaining > 1 ? `${name} (${remaining} fő)` : name}
                         </button>
                       ))
                     )}
@@ -639,15 +743,14 @@ export default function AdminSeatingPage() {
                             }}
                           >
                             <button
-                              className={`seat ${guestName ? 'is-occupied' : ''} ${getGuestLabelClass(
+                              className={`seat ${guestName ? 'is-occupied' : ''} ${
+                                isSeatSelected(tableIndex, seatIndex) ? 'is-selected' : ''
+                              } ${getGuestLabelClass(
                                 showLabelColors ? guestLabelByName.get(guestName) : '',
                               )}`}
                               type="button"
-                              onClick={() => {
-                                if (isEditing && guestName) {
-                                  clearSeat(tableIndex, seatIndex)
-                                }
-                              }}
+                              onClick={() => handleSeatClick(tableIndex, seatIndex)}
+                              onDoubleClick={() => handleSeatDoubleClick(tableIndex, seatIndex)}
                             >
                               {guestName || `Üres ${seatIndex + 1}. hely / index ${seatIndex}`}
                             </button>
@@ -685,8 +788,8 @@ export default function AdminSeatingPage() {
                         <p>Nincs még vendég ennél az asztalnál.</p>
                       ) : (
                         <ul>
-                          {seatedGuests.map((guestName) => (
-                            <li key={`${table.table_key}-${guestName}`}>
+                          {seatedGuests.map((guestName, seatedIndex) => (
+                            <li key={`${table.table_key}-${guestName}-${seatedIndex}`}>
                               <span
                                 className={`seating-summary-guest ${getVisibleGuestLabelClass(
                                   guestName,
