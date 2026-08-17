@@ -4,26 +4,15 @@ import AdminModal from '../components/AdminModal'
 import {
   buildAvailablePeople,
   buildInviteeToGuestNameMap,
+  buildPlanPeople,
   clonePlanRooms,
   copyRoomsPlannedToActual,
-  createLabelAssigner,
+  createColorClassAssigner,
 } from '../lib/planAssignments'
 import { supabase } from '../lib/supabase'
 
-const guestLabelClasses = {
-  'Lilla család': 'guest-label-lilla-family',
-  'Lilla barát': 'guest-label-lilla-friend',
-  'Közös barát': 'guest-label-common-friend',
-  'Norbi barát': 'guest-label-norbi-friend',
-  'Norbi család': 'guest-label-norbi-family',
-}
-
 function isAdmin(user) {
   return user?.app_metadata?.role === 'admin'
-}
-
-function getGuestLabelClass(label) {
-  return guestLabelClasses[label] || ''
 }
 
 function createRoom(displayOrder = 0) {
@@ -219,7 +208,7 @@ export default function AdminRoomsPage() {
         { data: assignmentData, error: assignmentError },
       ] = await Promise.all([
         supabase.from('guests').select('id, name, response, label').order('name'),
-        supabase.from('invitees').select('id, name, label, guest_id').order('name'),
+        supabase.from('invitees').select('id, name, label, invite_round, guest_id').order('name'),
         supabase
           .from('accommodation_rooms')
           .select(
@@ -266,10 +255,7 @@ export default function AdminRoomsPage() {
     loadRooms()
   }, [navigate])
 
-  const people =
-    planType === 'planned'
-      ? invitees.filter((invitee) => invitee.name)
-      : guests.filter((guest) => guest.response && guest.name)
+  const people = buildPlanPeople(planType, invitees, guests)
   const personNames = people.map((person) => person.name)
   // Ugyanaz a nev tobb emberhez is tartozhat, ezert nevenkent szamoljuk a fero szemelyeket
   const nameTotals = personNames.reduce(
@@ -282,9 +268,9 @@ export default function AdminRoomsPage() {
     new Map(),
   )
   const availableGuests = buildAvailablePeople(people, assignedNames)
-  const takeAssignmentLabel = createLabelAssigner(people)
-  const assignmentLabelByRoom = rooms.map((room) => {
-    const labels = {}
+  const takeAssignmentColorClass = createColorClassAssigner(people)
+  const assignmentColorByRoom = rooms.map((room) => {
+    const colors = {}
 
     getBedSlots(room).forEach((bed) => {
       for (let slotIndex = 0; slotIndex < bed.slotCount; slotIndex += 1) {
@@ -292,12 +278,12 @@ export default function AdminRoomsPage() {
         const guestName = room.assignments[assignmentKey]
 
         if (guestName) {
-          labels[assignmentKey] = takeAssignmentLabel(guestName)
+          colors[assignmentKey] = takeAssignmentColorClass(guestName)
         }
       }
     })
 
-    return labels
+    return colors
   })
   const duplicateWarnings = [...assignedCounts.entries()]
     .filter(([name, count]) => nameTotals.has(name) && count > nameTotals.get(name))
@@ -869,11 +855,11 @@ export default function AdminRoomsPage() {
                         : 'Minden visszajelzett vendég kapott szobát.'}
                     </p>
                   ) : (
-                    availableGuests.map(({ key, name, label }) => (
+                    availableGuests.map(({ key, name, colorClass }) => (
                       <button
                         draggable
                         type="button"
-                        className={getGuestLabelClass(label)}
+                        className={colorClass}
                         key={key}
                         onDragStart={(event) => {
                           event.dataTransfer.setData('text/plain', name)
@@ -907,9 +893,7 @@ export default function AdminRoomsPage() {
                                   <button
                                     className={`room-drop-zone ${guestName ? 'is-occupied' : ''} ${
                                       bed.type === 'extra' ? 'is-extra-bed' : ''
-                                    } ${getGuestLabelClass(
-                                      assignmentLabelByRoom[roomIndex]?.[assignmentKey] || '',
-                                    )}`}
+                                    } ${assignmentColorByRoom[roomIndex]?.[assignmentKey] || ''}`}
                                     type="button"
                                     key={assignmentKey}
                                     onClick={() => {
@@ -967,9 +951,9 @@ export default function AdminRoomsPage() {
                               .map(([assignmentKey, guestName]) => (
                                 <li key={`${room.room_key}-${assignmentKey}`}>
                                   <span
-                                    className={`seating-summary-guest ${getGuestLabelClass(
-                                      assignmentLabelByRoom[roomIndex]?.[assignmentKey] || '',
-                                    )}`}
+                                    className={`seating-summary-guest ${
+                                      assignmentColorByRoom[roomIndex]?.[assignmentKey] || ''
+                                    }`}
                                   >
                                     {guestName}
                                   </span>

@@ -3284,6 +3284,15 @@ p {
   border-color: rgba(112, 84, 50, 0.3);
 }
 
+.guest-palette button.guest-label-second-round,
+.seat.is-occupied.guest-label-second-round,
+.room-drop-zone.is-occupied.guest-label-second-round,
+.seating-summary-guest.guest-label-second-round {
+  color: #f5f2ea;
+  background: #7a7a72;
+  border-color: rgba(70, 70, 64, 0.42);
+}
+
 .seating-summary {
   margin-top: 32px;
 }

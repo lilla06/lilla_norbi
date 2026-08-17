@@ -3,27 +3,17 @@ import { Link, useNavigate } from 'react-router-dom'
 import {
   buildAvailablePeople,
   buildInviteeToGuestNameMap,
+  buildPlanPeople,
   clonePlanTables,
   copySeatingPlannedToActual,
-  createLabelAssigner,
+  createColorClassAssigner,
 } from '../lib/planAssignments'
 import { supabase } from '../lib/supabase'
 
 const defaultRoundTableCount = 13
-const guestLabelClasses = {
-  'Lilla család': 'guest-label-lilla-family',
-  'Lilla barát': 'guest-label-lilla-friend',
-  'Közös barát': 'guest-label-common-friend',
-  'Norbi barát': 'guest-label-norbi-friend',
-  'Norbi család': 'guest-label-norbi-family',
-}
 
 function isAdmin(user) {
   return user?.app_metadata?.role === 'admin'
-}
-
-function getGuestLabelClass(label) {
-  return guestLabelClasses[label] || ''
 }
 
 function cloneTables(tables) {
@@ -156,7 +146,7 @@ export default function AdminSeatingPage() {
         { data: assignmentData, error: assignmentError },
       ] = await Promise.all([
         supabase.from('guests').select('id, name, response, label').order('name'),
-        supabase.from('invitees').select('id, name, label, guest_id').order('name'),
+        supabase.from('invitees').select('id, name, label, invite_round, guest_id').order('name'),
         supabase
           .from('seating_tables')
           .select('table_key, name, capacity, table_type, display_order')
@@ -201,10 +191,7 @@ export default function AdminSeatingPage() {
     loadSeating()
   }, [navigate])
 
-  const people =
-    planType === 'planned'
-      ? invitees.filter((invitee) => invitee.name)
-      : guests.filter((guest) => guest.response && guest.name)
+  const people = buildPlanPeople(planType, invitees, guests)
   const personNames = people.map((person) => person.name)
   // Ugyanaz a nev tobb emberhez is tartozhat, ezert nevenkent szamoljuk a fero szemelyeket
   const nameTotals = personNames.reduce(
@@ -217,13 +204,12 @@ export default function AdminSeatingPage() {
     new Map(),
   )
   const availableGuests = buildAvailablePeople(people, seatedNames)
-  const takeSeatLabel = createLabelAssigner(people)
-  const seatLabelByPosition = tables.map((table) =>
-    table.seats.map((guestName) => (guestName ? takeSeatLabel(guestName) : '')),
+  const takeSeatColorClass = createColorClassAssigner(people)
+  const seatColorByPosition = tables.map((table) =>
+    table.seats.map((guestName) => (guestName ? takeSeatColorClass(guestName) : '')),
   )
   const guestResponseByName = new Map(guests.map((guest) => [guest.name, guest.response]))
-  const getVisibleGuestLabelClass = (label) =>
-    showLabelColors ? getGuestLabelClass(label) : ''
+  const getVisibleGuestLabelClass = (colorClass) => (showLabelColors ? colorClass : '')
   const seatingWarnings =
     planType === 'actual'
       ? tables.flatMap((table) =>
@@ -664,11 +650,11 @@ export default function AdminSeatingPage() {
                           : 'Minden visszajelzett vendég kapott helyet.'}
                       </p>
                     ) : (
-                      availableGuests.map(({ key, name, label }) => (
+                      availableGuests.map(({ key, name, colorClass }) => (
                         <button
                           draggable
                           type="button"
-                          className={getVisibleGuestLabelClass(label)}
+                          className={getVisibleGuestLabelClass(colorClass)}
                           key={key}
                           onDragStart={(event) => {
                             event.dataTransfer.setData('text/plain', name)
@@ -742,7 +728,7 @@ export default function AdminSeatingPage() {
                               className={`seat ${guestName ? 'is-occupied' : ''} ${
                                 isSeatSelected(tableIndex, seatIndex) ? 'is-selected' : ''
                               } ${getVisibleGuestLabelClass(
-                                seatLabelByPosition[tableIndex]?.[seatIndex] || '',
+                                seatColorByPosition[tableIndex]?.[seatIndex] || '',
                               )}`}
                               type="button"
                               onMouseDown={(event) => {
@@ -793,7 +779,7 @@ export default function AdminSeatingPage() {
                               <li key={`${table.table_key}-${seatIndex}`}>
                                 <span
                                   className={`seating-summary-guest ${getVisibleGuestLabelClass(
-                                    seatLabelByPosition[tableIndex]?.[seatIndex] || '',
+                                    seatColorByPosition[tableIndex]?.[seatIndex] || '',
                                   )}`}
                                 >
                                   {guestName}
