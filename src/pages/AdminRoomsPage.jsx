@@ -165,6 +165,7 @@ export default function AdminRoomsPage() {
   const [invitees, setInvitees] = useState([])
   const [guests, setGuests] = useState([])
   const [draggedGuest, setDraggedGuest] = useState('')
+  const [selectedSlot, setSelectedSlot] = useState(null)
   const [editMode, setEditMode] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -319,6 +320,7 @@ export default function AdminRoomsPage() {
       setActualRooms(cloneRooms(savedActualRooms))
       setEditMode(null)
       setDraggedGuest('')
+      setSelectedSlot(null)
     }
 
     setPlanType(nextType)
@@ -333,6 +335,7 @@ export default function AdminRoomsPage() {
     setSavedPlannedRooms(cloneRooms(plannedRooms))
     setSavedActualRooms(cloneRooms(actualRooms))
     setEditMode(nextMode)
+    setSelectedSlot(null)
     setStatusMessage('')
   }
 
@@ -340,6 +343,7 @@ export default function AdminRoomsPage() {
     setPlannedRooms(cloneRooms(savedPlannedRooms))
     setActualRooms(cloneRooms(savedActualRooms))
     setDraggedGuest('')
+    setSelectedSlot(null)
     setEditMode(null)
     setStatusMessage('')
   }
@@ -447,6 +451,8 @@ export default function AdminRoomsPage() {
       return
     }
 
+    setSelectedSlot(null)
+
     setRooms((currentRooms) =>
       currentRooms.map((room, currentRoomIndex) =>
         currentRoomIndex === roomIndex
@@ -458,6 +464,90 @@ export default function AdminRoomsPage() {
       ),
     )
     setDraggedGuest('')
+  }
+
+  function swapAssignments(source, target) {
+    setRooms((currentRooms) => {
+      const next = cloneRooms(currentRooms)
+      const sourceRoom = next[source.roomIndex]
+      const targetRoom = next[target.roomIndex]
+
+      if (!sourceRoom || !targetRoom) {
+        return currentRooms
+      }
+
+      const movedName = sourceRoom.assignments[source.assignmentKey] || ''
+      sourceRoom.assignments[source.assignmentKey] =
+        targetRoom.assignments[target.assignmentKey] || ''
+      targetRoom.assignments[target.assignmentKey] = movedName
+
+      return next
+    })
+  }
+
+  function isSlotSelected(roomIndex, assignmentKey) {
+    return (
+      selectedSlot?.type === 'slot' &&
+      selectedSlot.roomIndex === roomIndex &&
+      selectedSlot.assignmentKey === assignmentKey
+    )
+  }
+
+  function isPaletteSelected(paletteKey) {
+    return selectedSlot?.type === 'palette' && selectedSlot.key === paletteKey
+  }
+
+  function handlePaletteClick(paletteKey, name) {
+    if (editMode !== 'assignments') {
+      return
+    }
+
+    if (isPaletteSelected(paletteKey)) {
+      setSelectedSlot(null)
+      return
+    }
+
+    setSelectedSlot({ type: 'palette', key: paletteKey, name })
+  }
+
+  function handleSlotClick(roomIndex, assignmentKey) {
+    if (editMode !== 'assignments') {
+      return
+    }
+
+    const guestName = rooms[roomIndex]?.assignments?.[assignmentKey] || ''
+
+    if (!selectedSlot) {
+      if (guestName) {
+        setSelectedSlot({ type: 'slot', roomIndex, assignmentKey })
+      }
+      return
+    }
+
+    if (selectedSlot.type === 'palette') {
+      assignGuest(roomIndex, assignmentKey, selectedSlot.name)
+      return
+    }
+
+    if (isSlotSelected(roomIndex, assignmentKey)) {
+      setSelectedSlot(null)
+      return
+    }
+
+    swapAssignments(selectedSlot, { roomIndex, assignmentKey })
+    setSelectedSlot(null)
+  }
+
+  function handleSlotDoubleClick(roomIndex, assignmentKey) {
+    if (editMode !== 'assignments') {
+      return
+    }
+
+    setSelectedSlot(null)
+
+    if (rooms[roomIndex]?.assignments?.[assignmentKey]) {
+      clearAssignment(roomIndex, assignmentKey)
+    }
   }
 
   function clearAssignment(roomIndex, assignmentKey) {
@@ -594,6 +684,7 @@ export default function AdminRoomsPage() {
 
     setIsSubmitting(false)
     setEditMode(null)
+    setSelectedSlot(null)
     setStatusMessage(
       planType === 'planned' ? 'A tervezett szobabeosztás mentve.' : 'A valós szobabeosztás mentve.',
     )
@@ -848,6 +939,12 @@ export default function AdminRoomsPage() {
               <section className="room-assignment-editor">
                 <aside className="guest-palette room-guest-palette">
                   <h2>{planType === 'planned' ? 'Meghívottak' : 'Vendégek'}</h2>
+                  <p className="guest-palette-hint">
+                    Kattints egy névre a listában, majd az ágyra, ahova be szeretnéd osztani.
+                    Beosztott névre kattintva is kijelölheted, és a cél ágyra kattintva
+                    áthelyezed - ha ott már van valaki, a két név helyet cserél. Dupla
+                    kattintással törlöd a nevet a helyről. Húzni is lehet.
+                  </p>
                   {availableGuests.length === 0 ? (
                     <p>
                       {planType === 'planned'
@@ -859,8 +956,11 @@ export default function AdminRoomsPage() {
                       <button
                         draggable
                         type="button"
-                        className={colorClass}
+                        className={`${colorClass} ${
+                          isPaletteSelected(key) ? 'is-selected' : ''
+                        }`.trim()}
                         key={key}
+                        onClick={() => handlePaletteClick(key, name)}
                         onDragStart={(event) => {
                           event.dataTransfer.setData('text/plain', name)
                           event.dataTransfer.effectAllowed = 'move'
@@ -893,14 +993,19 @@ export default function AdminRoomsPage() {
                                   <button
                                     className={`room-drop-zone ${guestName ? 'is-occupied' : ''} ${
                                       bed.type === 'extra' ? 'is-extra-bed' : ''
+                                    } ${
+                                      isSlotSelected(roomIndex, assignmentKey) ? 'is-selected' : ''
                                     } ${assignmentColorByRoom[roomIndex]?.[assignmentKey] || ''}`}
                                     type="button"
                                     key={assignmentKey}
-                                    onClick={() => {
-                                      if (guestName) {
-                                        clearAssignment(roomIndex, assignmentKey)
-                                      }
+                                    onMouseDown={(event) => {
+                                      // fokusz nelkul nem gorget a bongeszo az agyhoz
+                                      event.preventDefault()
                                     }}
+                                    onClick={() => handleSlotClick(roomIndex, assignmentKey)}
+                                    onDoubleClick={() =>
+                                      handleSlotDoubleClick(roomIndex, assignmentKey)
+                                    }
                                     onDragOver={(event) => event.preventDefault()}
                                     onDrop={(event) => {
                                       event.preventDefault()

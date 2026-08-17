@@ -3054,6 +3054,11 @@ p {
   border-radius: 999px;
 }
 
+.guest-palette button.is-selected {
+  border-color: #d4af37;
+  box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.65);
+}
+
 .seating-warning {
   text-align: left;
 }
@@ -3370,7 +3375,6 @@ p {
 
 .rooms-page.is-assigning {
   place-items: start stretch;
-  padding-left: 344px;
 }
 
 .rooms-page.is-assigning .rooms-card {
@@ -3478,22 +3482,28 @@ p {
 }
 
 .room-assignment-editor {
-  display: block;
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  align-items: start;
+  gap: 20px;
   margin-top: 24px;
 }
 
 .room-assignment-editor .room-assignment-grid {
+  margin-top: 0;
   margin-left: 0;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
 }
 
 .room-guest-palette {
-  position: fixed;
-  top: 112px;
-  bottom: 112px;
-  left: 24px;
-  z-index: 8;
-  width: 296px;
-  max-height: none;
+  position: sticky;
+  top: 24px;
+  bottom: auto;
+  left: auto;
+  z-index: 1;
+  width: 100%;
+  max-height: calc(100vh - 200px);
+  overflow: auto;
   transform: none;
 }
 
@@ -3554,6 +3564,12 @@ p {
 
 .room-drop-zone.is-extra-bed {
   border-color: rgba(212, 175, 55, 0.68);
+}
+
+.room-drop-zone.is-selected {
+  border-color: #d4af37;
+  border-style: solid;
+  box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.65);
 }
 
 .site-footer {
@@ -3656,6 +3672,10 @@ p {
   .rooms-page.is-assigning .rooms-card {
     width: min(100%, 1180px);
     max-width: calc(100vw - 48px);
+  }
+
+  .room-assignment-editor {
+    grid-template-columns: 1fr;
   }
 
   .room-assignment-editor .room-assignment-grid {

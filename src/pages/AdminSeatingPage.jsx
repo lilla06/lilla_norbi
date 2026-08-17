@@ -364,7 +364,28 @@ export default function AdminSeatingPage() {
   }
 
   function isSeatSelected(tableIndex, seatIndex) {
-    return selectedSeat?.tableIndex === tableIndex && selectedSeat?.seatIndex === seatIndex
+    return (
+      selectedSeat?.type === 'seat' &&
+      selectedSeat.tableIndex === tableIndex &&
+      selectedSeat.seatIndex === seatIndex
+    )
+  }
+
+  function isPaletteSelected(paletteKey) {
+    return selectedSeat?.type === 'palette' && selectedSeat.key === paletteKey
+  }
+
+  function handlePaletteClick(paletteKey, name) {
+    if (!isEditing) {
+      return
+    }
+
+    if (isPaletteSelected(paletteKey)) {
+      setSelectedSeat(null)
+      return
+    }
+
+    setSelectedSeat({ type: 'palette', key: paletteKey, name })
   }
 
   function handleSeatClick(tableIndex, seatIndex) {
@@ -376,8 +397,13 @@ export default function AdminSeatingPage() {
 
     if (!selectedSeat) {
       if (seatName) {
-        setSelectedSeat({ tableIndex, seatIndex })
+        setSelectedSeat({ type: 'seat', tableIndex, seatIndex })
       }
+      return
+    }
+
+    if (selectedSeat.type === 'palette') {
+      assignGuest(tableIndex, seatIndex, selectedSeat.name)
       return
     }
 
@@ -639,9 +665,10 @@ export default function AdminSeatingPage() {
                   <aside className="guest-palette">
                     <h2>{planType === 'planned' ? 'Meghívottak' : 'Vendégek'}</h2>
                     <p className="guest-palette-hint">
-                      Kattints egy leültetett névre a kijelöléshez, majd a cél helyre az
-                      áthelyezéshez. Ha ott már ül valaki, a két név helyet cserél. Dupla
-                      kattintással törlöd a nevet a helyről.
+                      Kattints egy névre a listában, majd a helyre, ahova ültetni szeretnéd.
+                      Leültetett névre kattintva is kijelölheted, és a cél helyre kattintva
+                      áthelyezed - ha ott már ül valaki, a két név helyet cserél. Dupla
+                      kattintással törlöd a nevet a helyről. Húzni is lehet.
                     </p>
                     {availableGuests.length === 0 ? (
                       <p>
@@ -654,8 +681,11 @@ export default function AdminSeatingPage() {
                         <button
                           draggable
                           type="button"
-                          className={getVisibleGuestLabelClass(colorClass)}
+                          className={`${getVisibleGuestLabelClass(colorClass)} ${
+                            isPaletteSelected(key) ? 'is-selected' : ''
+                          }`.trim()}
                           key={key}
+                          onClick={() => handlePaletteClick(key, name)}
                           onDragStart={(event) => {
                             event.dataTransfer.setData('text/plain', name)
                             event.dataTransfer.effectAllowed = 'move'
