@@ -59,7 +59,7 @@ a {
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding: 18px clamp(20px, 5vw, 64px);
+  padding: 10px clamp(20px, 5vw, 64px);
   color: var(--cream-light);
   background: rgba(20, 37, 26, 0.92);
   border-bottom: 1px solid var(--gold-soft);
@@ -132,11 +132,26 @@ a {
 
 .brand {
   display: grid;
-  gap: 2px;
+  grid-template-columns: auto auto;
+  grid-template-areas:
+    'seal name'
+    'seal date';
+  align-items: center;
+  row-gap: 2px;
+  column-gap: 34px;
   text-decoration: none;
 }
 
+.brand-seal {
+  grid-area: seal;
+  width: clamp(68px, 7.5vw, 92px);
+  height: clamp(68px, 7.5vw, 92px);
+  opacity: 0.92;
+  filter: drop-shadow(0 2px 6px rgba(20, 31, 20, 0.45));
+}
+
 .brand span {
+  grid-area: name;
   font-family: var(--font-serif);
   font-size: clamp(22px, 3vw, 34px);
   font-weight: 500;
@@ -144,6 +159,7 @@ a {
 }
 
 .brand small {
+  grid-area: date;
   color: var(--gold);
   font-family: var(--font-sans);
   font-size: 12px;
@@ -496,6 +512,14 @@ main {
   margin-bottom: 18px;
 }
 
+.hero-monogram {
+  display: block;
+  width: clamp(190px, 24vw, 280px);
+  height: auto;
+  margin-bottom: 18px;
+  filter: drop-shadow(0 4px 14px rgba(20, 31, 20, 0.4));
+}
+
 .hero-panel .gold-divider {
   justify-content: flex-start;
   margin-bottom: 22px;
@@ -636,6 +660,13 @@ main {
 .invitation-card .monogram {
   margin-bottom: 14px;
   color: var(--gold-deep);
+}
+
+.invitation-monogram {
+  display: block;
+  width: clamp(170px, 22vw, 250px);
+  height: auto;
+  margin: 0 auto 14px;
 }
 
 .invitation-card p:not(.eyebrow) {
@@ -3802,6 +3833,7 @@ p {
     justify-content: center;
   }
 
+  .hero-monogram,
   .hero-lead {
     margin-inline: auto;
   }
@@ -3809,19 +3841,28 @@ p {
 
 @media (max-width: 680px) {
   .site-header {
-    padding: 14px 18px;
+    padding: 10px 18px;
   }
 
   .hero {
-    padding-top: 68px;
+    padding-top: 80px;
   }
 
   .hero-inner {
-    min-height: calc(100svh - 68px);
+    min-height: calc(100svh - 80px);
   }
 
   .header-actions {
     gap: 8px;
+  }
+
+  .brand {
+    column-gap: 22px;
+  }
+
+  .brand-seal {
+    width: 58px;
+    height: 58px;
   }
 
   .brand span {
@@ -4138,6 +4179,15 @@ p {
 }
 
 @media (max-width: 420px) {
+  .brand {
+    column-gap: 16px;
+  }
+
+  .brand-seal {
+    width: 50px;
+    height: 50px;
+  }
+
   .brand span {
     font-size: 19px;
   }

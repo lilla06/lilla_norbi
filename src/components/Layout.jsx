@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import brandSeal from '../assets/ln-seal.svg'
 
 function getUserName(user) {
   return user?.user_metadata?.name || user?.email || ''
@@ -80,6 +81,7 @@ export default function Layout({ children }) {
     <>
       <header className="site-header">
         <Link className="brand" to="/" aria-label="Lilla és Norbi főoldal">
+          <img className="brand-seal" src={brandSeal} alt="" aria-hidden="true" />
           <span>Lilla & Norbi</span>
           <small>2027. június 5.</small>
         </Link>

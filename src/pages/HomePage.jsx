@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import Monogram from '../components/Monogram'
 import { supabase } from '../lib/supabase'
+import heroMonogram from '../assets/ln_monogram.svg'
 import heroPoster from '../assets/fcaa2d02-5523-4e23-b660-656f0c8e0eea.jpg'
 import infoPhoto from '../assets/d336ad11-89cc-48ea-b1f0-0b53cef877b8.jpg'
 import storyMet from '../assets/3474ed38-0961-44d5-89f0-27b60ba81180.jpg'
@@ -437,7 +437,11 @@ export default function HomePage() {
           </div>
 
           <div className="hero-panel">
-            <Monogram />
+            <img
+              className="hero-monogram"
+              src={heroMonogram}
+              alt="Lilla és Norbi"
+            />
             <p className="eyebrow">Összeházasodunk</p>
             <h1>Lilla &amp; Norbi</h1>
             <p className="wedding-date">2027. június 5.</p>
@@ -460,7 +464,11 @@ export default function HomePage() {
 
       <section id="invitation" className="invitation-section reveal">
         <div className="invitation-card">
-          <Monogram />
+          <img
+            className="invitation-monogram"
+            src={heroMonogram}
+            alt="Lilla és Norbi"
+          />
           <p className="eyebrow">Meghívó</p>
           <h2>Kedves Vendégeink!</h2>
           <div className="gold-divider">

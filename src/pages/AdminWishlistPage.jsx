@@ -25,6 +25,7 @@ export default function AdminWishlistPage() {
     source: '',
     estimated_price: '',
   })
+  const [updatingAcquiredIds, setUpdatingAcquiredIds] = useState(() => new Set())
   const [deletingId, setDeletingId] = useState(null)
   const [taskFilter, setTaskFilter] = useState('all')
   const [acquiredFilter, setAcquiredFilter] = useState('all')
@@ -183,6 +184,42 @@ export default function AdminWishlistPage() {
     setMaterials((current) => current.filter((item) => item.id !== materialId))
   }
 
+  async function toggleMaterialAcquired(material) {
+    if (updatingAcquiredIds.has(material.id)) {
+      return
+    }
+
+    const nextIsAcquired = !material.is_acquired
+
+    setStatusMessage('')
+    setUpdatingAcquiredIds((current) => new Set(current).add(material.id))
+    setMaterials((current) =>
+      current.map((item) =>
+        item.id === material.id ? { ...item, is_acquired: nextIsAcquired } : item,
+      ),
+    )
+
+    const { error } = await supabase
+      .from('wedding_task_materials')
+      .update({ is_acquired: nextIsAcquired })
+      .eq('id', material.id)
+
+    setUpdatingAcquiredIds((current) => {
+      const next = new Set(current)
+      next.delete(material.id)
+      return next
+    })
+
+    if (error) {
+      setMaterials((current) =>
+        current.map((item) =>
+          item.id === material.id ? { ...item, is_acquired: material.is_acquired } : item,
+        ),
+      )
+      setStatusMessage(`Nem sikerült frissíteni a beszerzést: ${error.message}`)
+    }
+  }
+
   if (isLoading) {
     return (
       <main className="auth-page">
@@ -296,7 +333,22 @@ export default function AdminWishlistPage() {
                           key={material.id}
                           className={material.is_acquired ? 'material-row-acquired' : ''}
                         >
-                          <td>{material.is_acquired ? 'Igen' : 'Nem'}</td>
+                          <td className="material-acquired-cell">
+                            <label className="material-acquired-option">
+                              <input
+                                type="checkbox"
+                                checked={Boolean(material.is_acquired)}
+                                onChange={() => toggleMaterialAcquired(material)}
+                                disabled={updatingAcquiredIds.has(material.id)}
+                                aria-label={`${material.name || 'Névtelen alapanyag'} ${
+                                  material.is_acquired
+                                    ? 'megjelölése nincs beszerezve állapotúnak'
+                                    : 'megjelölése beszerezve állapotúnak'
+                                }`}
+                              />
+                              <span>{material.is_acquired ? 'Igen' : 'Nem'}</span>
+                            </label>
+                          </td>
                           <td>
                             <Link
                               className="task-title-link"
